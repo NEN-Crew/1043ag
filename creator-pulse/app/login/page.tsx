@@ -9,6 +9,9 @@ export default function LoginPage() {
           Sign in to see your numbers
         </p>
         <LoginForm />
+        <p className="subtle legal-links">
+          <a href="/terms">Terms of Service</a> · <a href="/privacy">Privacy Policy</a>
+        </p>
       </div>
     </main>
   );
