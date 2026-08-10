@@ -48,3 +48,33 @@ create table if not exists tiktok_stats (
   videos        jsonb not null default '[]',
   updated_at    timestamptz not null default now()
 );
+
+-- Append-only snapshots, one row per refresh, so history is never lost.
+-- post_metrics/video_metrics hold slim per-item numbers (no captions/urls)
+-- to keep rows small.
+create table if not exists instagram_stats_history (
+  id               bigint generated always as identity primary key,
+  influencer_id    text not null references influencers(id) on delete cascade,
+  followers        integer,
+  following        integer,
+  media_count      integer,
+  account_insights jsonb,
+  demographics     jsonb,
+  post_metrics     jsonb not null default '[]',
+  captured_at      timestamptz not null default now()
+);
+create index if not exists instagram_stats_history_influencer_idx
+  on instagram_stats_history (influencer_id, captured_at);
+
+create table if not exists tiktok_stats_history (
+  id            bigint generated always as identity primary key,
+  influencer_id text not null references influencers(id) on delete cascade,
+  followers     integer,
+  following     integer,
+  likes_total   bigint,
+  video_count   integer,
+  video_metrics jsonb not null default '[]',
+  captured_at   timestamptz not null default now()
+);
+create index if not exists tiktok_stats_history_influencer_idx
+  on tiktok_stats_history (influencer_id, captured_at);

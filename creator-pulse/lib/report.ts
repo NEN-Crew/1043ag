@@ -58,6 +58,18 @@ export async function refreshInfluencer(influencerId: string): Promise<string[]>
             media_count = excluded.media_count, posts = excluded.posts,
             account_insights = excluded.account_insights, demographics = excluded.demographics,
             updated_at = now()`;
+        const postMetrics = s.posts.map((p: any) => ({
+          id: p.id, timestamp: p.timestamp, likes: p.likes, comments: p.comments,
+          reach: p.reach, saves: p.saves, shares: p.shares, views: p.views,
+          totalInteractions: p.totalInteractions,
+        }));
+        await sql`
+          insert into instagram_stats_history
+            (influencer_id, followers, following, media_count, account_insights, demographics, post_metrics)
+          values (${influencerId}, ${s.followers}, ${s.following}, ${s.mediaCount},
+                  ${s.accountInsights ? JSON.stringify(s.accountInsights) : null}::jsonb,
+                  ${s.demographics ? JSON.stringify(s.demographics) : null}::jsonb,
+                  ${JSON.stringify(postMetrics)}::jsonb)`;
         done.push("instagram");
       }
 
@@ -82,6 +94,15 @@ export async function refreshInfluencer(influencerId: string): Promise<string[]>
             username = excluded.username, followers = excluded.followers, following = excluded.following,
             likes_total = excluded.likes_total, video_count = excluded.video_count,
             videos = excluded.videos, updated_at = now()`;
+        const videoMetrics = s.videos.map((v: any) => ({
+          id: v.id, createTime: v.createTime, views: v.views, likes: v.likes,
+          comments: v.comments, shares: v.shares,
+        }));
+        await sql`
+          insert into tiktok_stats_history
+            (influencer_id, followers, following, likes_total, video_count, video_metrics)
+          values (${influencerId}, ${s.followers}, ${s.following}, ${s.likesTotal},
+                  ${s.videoCount}, ${JSON.stringify(videoMetrics)}::jsonb)`;
         done.push("tiktok");
       }
     } catch (err) {
