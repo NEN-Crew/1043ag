@@ -4,7 +4,8 @@ const API = "https://open.tiktokapis.com";
 const SCOPES = "user.info.basic,user.info.profile,user.info.stats,video.list";
 
 function redirectUri() {
-  return `${process.env.APP_URL}/api/connect/tiktok/callback`;
+  // Tolerate a trailing slash in APP_URL (see instagram.ts).
+  return `${process.env.APP_URL!.replace(/\/+$/, "")}/api/connect/tiktok/callback`;
 }
 
 export function authorizeUrl(state: string): string {

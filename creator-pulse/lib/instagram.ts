@@ -4,7 +4,9 @@ const GRAPH = "https://graph.instagram.com";
 const SCOPES = "instagram_business_basic,instagram_business_manage_insights";
 
 function redirectUri() {
-  return `${process.env.APP_URL}/api/connect/instagram/callback`;
+  // Tolerate a trailing slash in APP_URL — a doubled slash here makes the
+  // URI mismatch the one registered with Meta.
+  return `${process.env.APP_URL!.replace(/\/+$/, "")}/api/connect/instagram/callback`;
 }
 
 export function authorizeUrl(state: string): string {
