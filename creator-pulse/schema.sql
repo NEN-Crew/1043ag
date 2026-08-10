@@ -2,12 +2,17 @@
 -- one row per influencer each.
 
 create table if not exists influencers (
-  id            text primary key,
-  name          text not null,
-  email         text unique not null,
-  password_hash text not null,
-  created_at    timestamptz not null default now()
+  id                     text primary key,
+  name                   text not null,
+  email                  text unique not null,
+  password_hash          text not null,
+  -- Rate-limits the influencer's own refresh button (admin is unlimited).
+  last_manual_refresh_at timestamptz,
+  created_at             timestamptz not null default now()
 );
+
+-- Migration for databases created before the column existed.
+alter table influencers add column if not exists last_manual_refresh_at timestamptz;
 
 -- One OAuth connection per (influencer, platform). Tokens are encrypted.
 create table if not exists connections (

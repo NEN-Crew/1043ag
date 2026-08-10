@@ -3,6 +3,7 @@ import { getInfluencerId } from "@/lib/auth";
 import { getReport } from "@/lib/report";
 import PlatformCard from "@/components/PlatformCard";
 import LogoutButton from "@/components/LogoutButton";
+import SelfRefresh from "@/components/SelfRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function MePage({
         <div>
           <h1 className="page-title">Hi, {report.influencer.name.split(" ")[0]}</h1>
           <p className="subtle">Your Instagram and TikTok numbers, in one place.</p>
+          {(connected.instagram || connected.tiktok) && <SelfRefresh influencerId={id} />}
         </div>
 
         {searchParams.connected && (
