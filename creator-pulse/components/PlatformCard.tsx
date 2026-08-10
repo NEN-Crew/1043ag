@@ -21,6 +21,26 @@ export default function PlatformCard({ platform, stats }: Props) {
 
   const items = (isIg ? stats?.posts : stats?.videos) ?? [];
 
+  // Account-level insight totals (Instagram only, "last day" period).
+  const accountMetrics = isIg ? stats?.account_insights?.metrics : null;
+  const accountFigures = accountMetrics
+    ? [
+        { label: "Reach (1d)", value: accountMetrics.reach },
+        { label: "Views (1d)", value: accountMetrics.views },
+        { label: "Engaged (1d)", value: accountMetrics.accounts_engaged },
+        { label: "Interactions (1d)", value: accountMetrics.total_interactions },
+      ].filter((f) => f.value != null)
+    : [];
+
+  // Top follower-demographics entry per dimension, e.g. "25-34 · F · BR".
+  const demo = isIg ? stats?.demographics : null;
+  const demoSummary = demo
+    ? ["age", "gender", "country"]
+        .map((d) => demo[d]?.[0]?.key)
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
   return (
     <div className={`card card-pad platform ${tag}`}>
       <div className="platform-head">
@@ -42,6 +62,23 @@ export default function PlatformCard({ platform, stats }: Props) {
         ))}
       </div>
 
+      {accountFigures.length > 0 && (
+        <div className="statgrid" style={{ marginTop: 10 }}>
+          {accountFigures.map((f) => (
+            <div className="stat" key={f.label}>
+              <span className="figure" title={full(f.value)}>{compact(f.value)}</span>
+              <span className="label">{f.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {demoSummary && (
+        <p className="subtle" style={{ marginTop: 10, marginBottom: 0 }}>
+          Top audience: {demoSummary}
+        </p>
+      )}
+
       {items.length > 0 && (
         <div className="items">
           {items.slice(0, 6).map((it: any) => (
@@ -60,11 +97,20 @@ export default function PlatformCard({ platform, stats }: Props) {
               )}
               <span className="item-cap">{(isIg ? it.caption : it.title) || "Untitled"}</span>
               <span className="item-metrics">
-                {!isIg && (
+                {it.views != null && (
                   <span className="item-metric"><b>{compact(it.views)}</b> views</span>
+                )}
+                {isIg && it.reach != null && (
+                  <span className="item-metric"><b>{compact(it.reach)}</b> reach</span>
                 )}
                 <span className="item-metric"><b>{compact(it.likes)}</b> likes</span>
                 <span className="item-metric"><b>{compact(it.comments)}</b> comments</span>
+                {isIg && it.saves != null && (
+                  <span className="item-metric"><b>{compact(it.saves)}</b> saves</span>
+                )}
+                {isIg && it.shares != null && (
+                  <span className="item-metric"><b>{compact(it.shares)}</b> shares</span>
+                )}
               </span>
             </a>
           ))}

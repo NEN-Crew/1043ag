@@ -47,12 +47,17 @@ export async function refreshInfluencer(influencerId: string): Promise<string[]>
         }
         const s = await ig.fetchStats(token);
         await sql`
-          insert into instagram_stats (influencer_id, username, followers, following, media_count, posts, updated_at)
+          insert into instagram_stats (influencer_id, username, followers, following, media_count, posts,
+                                       account_insights, demographics, updated_at)
           values (${influencerId}, ${s.username}, ${s.followers}, ${s.following}, ${s.mediaCount},
-                  ${JSON.stringify(s.posts)}::jsonb, now())
+                  ${JSON.stringify(s.posts)}::jsonb,
+                  ${s.accountInsights ? JSON.stringify(s.accountInsights) : null}::jsonb,
+                  ${s.demographics ? JSON.stringify(s.demographics) : null}::jsonb, now())
           on conflict (influencer_id) do update set
             username = excluded.username, followers = excluded.followers, following = excluded.following,
-            media_count = excluded.media_count, posts = excluded.posts, updated_at = now()`;
+            media_count = excluded.media_count, posts = excluded.posts,
+            account_insights = excluded.account_insights, demographics = excluded.demographics,
+            updated_at = now()`;
         done.push("instagram");
       }
 

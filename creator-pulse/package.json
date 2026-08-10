@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "db:setup": "tsx scripts/setup-db.ts"
+    "db:setup": "tsx --env-file-if-exists=.env scripts/setup-db.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

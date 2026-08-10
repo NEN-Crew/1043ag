@@ -23,14 +23,20 @@ create table if not exists connections (
 );
 
 create table if not exists instagram_stats (
-  influencer_id text primary key references influencers(id) on delete cascade,
-  username      text,
-  followers     integer,
-  following     integer,
-  media_count   integer,
-  posts         jsonb not null default '[]',
-  updated_at    timestamptz not null default now()
+  influencer_id    text primary key references influencers(id) on delete cascade,
+  username         text,
+  followers        integer,
+  following        integer,
+  media_count      integer,
+  posts            jsonb not null default '[]',
+  account_insights jsonb,
+  demographics     jsonb,
+  updated_at       timestamptz not null default now()
 );
+
+-- Migration for databases created before the insights columns existed.
+alter table instagram_stats add column if not exists account_insights jsonb;
+alter table instagram_stats add column if not exists demographics jsonb;
 
 create table if not exists tiktok_stats (
   influencer_id text primary key references influencers(id) on delete cascade,
