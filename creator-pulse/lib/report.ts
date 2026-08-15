@@ -20,10 +20,7 @@ export type CreatorReport = {
   connected: { instagram: boolean; tiktok: boolean };
   /** Only the platforms this creator actually has — drives which tabs render. */
   platforms: PlatformView[];
-  /**
-   * One photo per creator, Instagram first. It's the same person either way,
-   * and the Instagram one is the account that actually keeps a profile photo.
-   */
+  /** Fallback photo for a network that has none. Instagram first. */
   avatarUrl: string | null;
   audience: Audience | null;
   /** Follower-weighted score across the connected platforms. */
@@ -162,8 +159,8 @@ export async function getRoster(): Promise<AgencyRoster> {
         creatorId: inf.id,
         name: inf.name,
         handle: v.handle,
-        // One face per creator across every row, not one per network.
-        avatarUrl: report.avatarUrl,
+        // A row is an account, so it wears that account's photo.
+        avatarUrl: v.avatarUrl ?? report.avatarUrl,
         platform: v.platform,
         platformLabel: v.label,
         er: v.engagement.rate,

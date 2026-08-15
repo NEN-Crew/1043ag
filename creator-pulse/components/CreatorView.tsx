@@ -137,9 +137,10 @@ function Masthead({
   variant: "self" | "agency";
 }) {
   const view = report.platforms.find((p) => p.platform === active);
-  // One photo for the creator, not one per tab — switching networks shouldn't
-  // change who you're looking at.
-  const avatar = report.avatarUrl;
+  // Each tab wears its own account's photo. The creator-level one is only a
+  // fallback, so a network without a picture borrows rather than showing an
+  // empty slot.
+  const avatar = view?.avatarUrl ?? report.avatarUrl;
 
   return (
     <div className="field grain">
