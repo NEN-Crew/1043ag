@@ -3,9 +3,9 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { AgencyRoster, RosterEntry } from "@/lib/report";
-import { formatCount, formatRate } from "@/lib/format";
+import { formatCount, formatFreshness, formatRate } from "@/lib/format";
 import { Caption, DeltaTag, Eyebrow, VerdictChip } from "./ui";
-import { ChevronRight, Grid, Info, PlatformIcon } from "./Icons";
+import { AlertTriangle, ChevronRight, Clock, Grid, Info, PlatformIcon } from "./Icons";
 
 type SortKey = "er" | "followers" | "growth";
 type Network = "all" | "instagram" | "tiktok";
@@ -184,6 +184,8 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
           ))
         )}
 
+        <Freshness at={roster.meta.lastUpdatedAt} />
+
         <div style={{ display: "flex", gap: 8, paddingTop: 16, alignItems: "flex-start" }}>
           <Info size={13} />
           <Caption>
@@ -214,6 +216,33 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
       </div>
       <div className="section-index" aria-hidden="true">01</div>
     </section>
+  );
+}
+
+/**
+ * The numbers refresh on a daily cron. If that stops firing, nothing on screen
+ * would otherwise look wrong — the data just quietly ages, and the history the
+ * charts are built from stops accumulating. So it says so.
+ */
+function Freshness({ at }: { at: string | null }) {
+  if (!at) return null;
+  const days = (Date.now() - new Date(at).getTime()) / 86_400_000;
+  const stale = days > 2;
+
+  return (
+    <div
+      style={{
+        display: "flex", gap: 8, alignItems: "flex-start",
+        paddingTop: 16, color: stale ? "var(--accent)" : "var(--ink-500)",
+      }}
+    >
+      {stale ? <AlertTriangle size={13} /> : <Clock size={13} />}
+      <span style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+        {stale
+          ? `Dados ${formatFreshness(at)} — a atualização diária automática pode ter parado. Verifique CRON_SECRET nas variáveis de ambiente da Vercel.`
+          : `Dados ${formatFreshness(at)} · atualização automática diária`}
+      </span>
+    </div>
   );
 }
 

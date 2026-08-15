@@ -46,7 +46,14 @@ export type RosterEntry = {
 };
 
 export type AgencyRoster = {
-  meta: { creatorCount: number; connectedCount: number; avgEr: number | null; totalReach: number | null };
+  meta: {
+    creatorCount: number;
+    connectedCount: number;
+    avgEr: number | null;
+    totalReach: number | null;
+    /** Newest data across the roster. A silent cron failure shows up here. */
+    lastUpdatedAt: string | null;
+  };
   creators: RosterEntry[];
   /** Creators with nothing connected yet — listed separately, never ranked. */
   pending: { id: string; name: string; email: string }[];
@@ -115,7 +122,11 @@ export async function getRoster(): Promise<AgencyRoster> {
   `) as any[];
 
   if (!influencers.length) {
-    return { meta: { creatorCount: 0, connectedCount: 0, avgEr: null, totalReach: null }, creators: [], pending: [] };
+    return {
+      meta: { creatorCount: 0, connectedCount: 0, avgEr: null, totalReach: null, lastUpdatedAt: null },
+      creators: [],
+      pending: [],
+    };
   }
 
   const ids = influencers.map((i) => i.id);
@@ -183,6 +194,8 @@ export async function getRoster(): Promise<AgencyRoster> {
       connectedCount: influencers.length - pending.length,
       avgEr: ers.length ? ers.reduce((a, b) => a + b, 0) / ers.length : null,
       totalReach: reach.length ? reach.reduce((a, b) => a + b, 0) : null,
+      lastUpdatedAt:
+        creators.map((c) => c.updatedAt).filter(Boolean).sort().slice(-1)[0] ?? null,
     },
     creators,
     pending,

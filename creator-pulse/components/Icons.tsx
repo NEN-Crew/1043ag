@@ -76,6 +76,10 @@ export const Calendar = (p: Props) => (
   <Svg {...p}><rect x="3" y="5" width="18" height="16" /><path d="M16 3v4M8 3v4M3 11h18" /></Svg>
 );
 
+export const AlertTriangle = (p: Props) => (
+  <Svg {...p}><path d="M12 3 2.5 20h19z" /><path d="M12 9v5M12 17.5h.01" /></Svg>
+);
+
 export const Info = (p: Props) => (
   <Svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 16v-5M12 8h.01" /></Svg>
 );
