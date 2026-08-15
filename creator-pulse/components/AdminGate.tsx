@@ -17,20 +17,28 @@ export default function AdminGate() {
     });
     if (res.ok) window.location.reload();
     else {
-      setError((await res.json()).error ?? "Wrong password");
+      setError((await res.json()).error ?? "Senha incorreta");
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="stack">
-      <div className="field">
-        <label>Agency password</label>
-        <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
+    <form onSubmit={submit}>
+      <div style={{ marginBottom: 16 }}>
+        <label className="field-label" htmlFor="senha-agencia">Senha da agência</label>
+        <input
+          id="senha-agencia"
+          className="field-input"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoFocus
+        />
       </div>
-      {error && <div className="notice err">{error}</div>}
-      <button className="btn btn-accent" style={{ width: "100%" }} disabled={busy}>
-        {busy ? "Checking…" : "Enter"}
+      {error && <div className="notice warn" style={{ marginBottom: 16 }}>{error}</div>}
+      <button className="btn" style={{ width: "100%", height: 42 }} disabled={busy}>
+        {busy ? "Verificando…" : "Entrar"}
       </button>
     </form>
   );

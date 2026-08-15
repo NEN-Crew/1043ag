@@ -1,11 +1,9 @@
 import { redirect } from "next/navigation";
 import { getInfluencerId } from "@/lib/auth";
 import { getReport } from "@/lib/report";
-import PlatformCard from "@/components/PlatformCard";
-import AudienceCard from "@/components/AudienceCard";
-import ScoreHero from "@/components/ScoreHero";
-import LogoutButton from "@/components/LogoutButton";
-import SelfRefresh from "@/components/SelfRefresh";
+import CreatorView from "@/components/CreatorView";
+import TopBar from "@/components/TopBar";
+import { Caption } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -21,59 +19,52 @@ export default async function MePage({
   if (!report) redirect("/login");
 
   const { connected } = report;
-  const anyConnected = connected.instagram || connected.tiktok;
   const allConnected = connected.instagram && connected.tiktok;
 
   return (
     <>
-      <header className="topbar">
-        <span className="wordmark">Pulse<span className="dot">.</span></span>
-        <LogoutButton />
-      </header>
-
-      <main className="shell stack">
-        <div>
-          <h1 className="page-title">Hi, {report.influencer.name.split(" ")[0]}</h1>
-          <p className="subtle">How your Instagram and TikTok are actually performing.</p>
-          {anyConnected && <SelfRefresh influencerId={id} />}
-        </div>
-
+      <TopBar view="creator" />
+      <main className="shell">
         {searchParams.connected && (
-          <div className="notice ok">Connected your {searchParams.connected} account. Your numbers are below.</div>
+          <div className="notice" style={{ marginBottom: 20, borderColor: "var(--cobalt)", color: "var(--cobalt)" }}>
+            {searchParams.connected === "instagram" ? "Instagram" : "TikTok"} conectado. Seus números estão abaixo.
+          </div>
         )}
         {searchParams.connect === "error" && (
-          <div className="notice err">That connection didn’t go through. Try again, or ask the agency for a hand.</div>
-        )}
-
-        {anyConnected && <ScoreHero report={report} />}
-
-        {!allConnected && (
-          <div className="card card-pad">
-            <div className="row-name" style={{ marginBottom: 6 }}>
-              {anyConnected ? "Connect your other account" : "Connect your accounts"}
-            </div>
-            <p className="subtle" style={{ marginTop: 0 }}>
-              You’ll be sent to {anyConnected ? "the platform" : "Instagram or TikTok"} to approve access. We only read your public stats.
-            </p>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {!connected.instagram && (
-                <a className="btn btn-ig" href="/api/connect/instagram/start">Connect Instagram</a>
-              )}
-              {!connected.tiktok && (
-                <a className="btn btn-tt" href="/api/connect/tiktok/start">Connect TikTok</a>
-              )}
-            </div>
+          <div className="notice warn" style={{ marginBottom: 20 }}>
+            A conexão não foi concluída. Tente de novo ou fale com a agência.
           </div>
         )}
 
-        {connected.instagram && (
-          <PlatformCard analysis={report.analysis.instagram} growth={report.growth.instagram} />
-        )}
-        {connected.tiktok && (
-          <PlatformCard analysis={report.analysis.tiktok} growth={report.growth.tiktok} />
+        <CreatorView report={report} variant="self" />
+
+        {!allConnected && (
+          <section className="section">
+            <div className="section-body">
+              <span className="micro">
+                {connected.instagram || connected.tiktok ? "Conectar a outra rede" : "Conectar suas redes"}
+              </span>
+              <Caption style={{ margin: "10px 0 16px", maxWidth: 520 }}>
+                Você será levado à plataforma para autorizar o acesso. Lemos apenas suas estatísticas —
+                nunca publicamos nada.
+              </Caption>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {!connected.instagram && (
+                  <a className="btn" href="/api/connect/instagram/start">Conectar Instagram</a>
+                )}
+                {!connected.tiktok && (
+                  <a className="btn" href="/api/connect/tiktok/start">Conectar TikTok</a>
+                )}
+              </div>
+            </div>
+            <div className="section-index" aria-hidden="true">+</div>
+          </section>
         )}
 
-        <AudienceCard audience={report.audience} />
+        <div className="footer">
+          <span>1043 AG · creator performance</span>
+          <span>fim do relatório</span>
+        </div>
       </main>
     </>
   );

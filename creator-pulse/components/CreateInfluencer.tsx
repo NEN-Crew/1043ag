@@ -24,41 +24,44 @@ export default function CreateInfluencer() {
       setCreated(data);
       setName("");
       setEmail("");
-    } else setError(data.error ?? "Could not create");
+    } else setError(data.error ?? "Não foi possível criar");
   }
 
   return (
-    <div className="card card-pad">
-      <div className="row-name" style={{ marginBottom: 14 }}>Add a creator</div>
+    <div style={{ borderTop: "1px solid var(--line)", padding: "26px 0 32px" }}>
+      <div style={{ marginBottom: 16 }}>
+        <span className="micro">Adicionar creator</span>
+      </div>
       <form onSubmit={submit}>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <div className="field" style={{ flex: 1, minWidth: 160, marginBottom: 0 }}>
-            <label>Name</label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label className="field-label" htmlFor="novo-nome">Nome</label>
+            <input id="novo-nome" className="field-input" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
-          <div className="field" style={{ flex: 1, minWidth: 160, marginBottom: 0 }}>
-            <label>Email</label>
-            <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label className="field-label" htmlFor="novo-email">E-mail</label>
+            <input id="novo-email" className="field-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
-          <button className="btn btn-accent" style={{ alignSelf: "flex-end" }} disabled={busy}>
-            {busy ? "Creating…" : "Create account"}
+          <button className="btn" style={{ height: 41 }} disabled={busy}>
+            {busy ? "Criando…" : "Criar conta"}
           </button>
         </div>
       </form>
 
-      {error && <div className="notice err" style={{ marginTop: 14 }}>{error}</div>}
+      {error && <div className="notice warn" style={{ marginTop: 16 }}>{error}</div>}
       {created && (
-        <div className="notice ok" style={{ marginTop: 14 }}>
-          Account created. Share these with the creator (the password is shown only once):<br />
-          Email <span className="cred">{created.email}</span>{" "}
-          Password <span className="cred">{created.password}</span><br />
-          Login at <span className="cred">{created.loginUrl}</span>
+        <div className="notice" style={{ marginTop: 16, borderColor: "var(--cobalt)", color: "var(--ink)" }}>
+          <div className="micro" style={{ marginBottom: 8, color: "var(--cobalt)" }}>Conta criada</div>
+          Envie estes dados ao creator — a senha aparece uma única vez.
+          <div style={{ marginTop: 10, display: "grid", gap: 4, fontWeight: 700 }}>
+            <span>E-mail: {created.email}</span>
+            <span>Senha: {created.password}</span>
+            <span>Login: {created.loginUrl}</span>
+          </div>
+          <button className="btn" style={{ marginTop: 14 }} onClick={() => window.location.reload()}>
+            Atualizar lista
+          </button>
         </div>
-      )}
-      {created && (
-        <button className="btn" style={{ marginTop: 12 }} onClick={() => window.location.reload()}>
-          Refresh list
-        </button>
       )}
     </div>
   );

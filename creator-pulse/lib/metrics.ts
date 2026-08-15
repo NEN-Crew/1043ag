@@ -1,10 +1,13 @@
 /**
- * Turns the raw numbers we store into the handful of things an agency and a
- * creator actually decide on: is this audience engaged, do the posts get seen,
- * does anyone act on them, and does the creator show up consistently.
+ * Turns stored platform numbers into the view model the dashboard consumes.
  *
- * Everything here is pure — same stats in, same analysis out — so it can run on
- * the server for both /me and /admin without another API round trip.
+ * The editorial rule the screen is built on: **engagement rate governs**. It is
+ * the biggest number, the first thing rendered, and what the roster ranks by.
+ * Everything else — reach, cadence, the composite score — is supporting
+ * evidence, and is sized and placed accordingly.
+ *
+ * Pure: same stats in, same view model out, so it runs server-side for both
+ * the creator and the agency screens without another round trip.
  */
 import {
   CADENCE_ANCHORS,
@@ -12,38 +15,70 @@ import {
   EFFORT_SHARE_ANCHORS,
   EFFORT_SHARE_ANCHORS_TIKTOK,
   MIN_POSTS_TO_SCORE,
-  SENDS_PER_REACH_BAND,
   Tier,
   VIEW_RATE_ANCHORS,
   engagementAnchors,
-  grade,
   scoreAt,
   tierFor,
 } from "./benchmarks";
 
 export type Platform = "instagram" | "tiktok";
+export type Direction = "up" | "down";
 
-export type Item = {
+/** Cobalt reads "good", orange-red reads "attention". Nothing else. */
+export type Verdict = { label: string; tone: "good" | "warn" | "none" };
+
+export type Delta = { value: number; dir: Direction; unit: "pp" | "pct" };
+
+export function delta(value: number | null | undefined, unit: "pp" | "pct"): Delta | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return { value, dir: value >= 0 ? "up" : "down", unit };
+}
+
+/** A 0–100 score becomes one of the four Portuguese verdicts. */
+export function verdictFor(score: number | null | undefined): Verdict | null {
+  if (score == null) return null;
+  if (score >= 85) return { label: "Excelente", tone: "good" };
+  if (score >= 55) return { label: "Bom", tone: "good" };
+  if (score >= 40) return { label: "Médio", tone: "warn" };
+  return { label: "Ruim", tone: "warn" };
+}
+
+export type PostFormat = "reel" | "carousel" | "photo" | "video";
+
+export type Post = {
   id: string;
-  url: string | null;
-  thumb: string | null;
+  format: PostFormat;
+  formatLabel: string;
   caption: string;
-  format: string;
-  at: string | null;
-  views: number | null;
-  reach: number | null;
+  /** Engagement rate for this post, as a percentage number. */
+  er: number | null;
   likes: number | null;
   comments: number | null;
   saves: number | null;
   shares: number | null;
-  /** Saves + shares: the reactions that carry a post to new people. */
-  sends: number | null;
-  /** Every reaction we can see on this post. */
-  interactions: number | null;
-  /** Interactions ÷ reach (or views, when reach isn't available). */
-  engagementByReach: number | null;
-  /** (saves + shares) ÷ reach — the distribution signal. Instagram only. */
-  sendsPerReach: number | null;
+  views: number | null;
+  reach: number | null;
+  thumbnailUrl: string | null;
+  permalink: string | null;
+  postedAt: string | null;
+};
+
+export type EngagementKind = "likes" | "comments" | "saves" | "shares";
+
+export type BreakdownStat = { kind: EngagementKind; label: string; count: number };
+
+export type SummaryMetric = {
+  key: string;
+  label: string;
+  value: number | null;
+  /** Rendered small beside the value, e.g. "/100" or "%". */
+  unit: string | null;
+  delta: Delta | null;
+  verdict: Verdict | null;
+  trend?: number[];
+  /** Shown in the score disclosure, not on the cell. */
+  note?: string;
 };
 
 export type Component = {
@@ -51,56 +86,63 @@ export type Component = {
   label: string;
   weight: number;
   score: number | null;
-  /** The measured number, formatted for display. */
   display: string;
-  /** What normal looks like, so the score isn't a black box. */
   benchmark: string;
-  /** One line of plain English: what this measures and what it's telling us. */
   note: string;
 };
 
-export type Analysis = {
-  platform: Platform;
-  handle: string | null;
-  followers: number | null;
-  tier: Tier;
-  updatedAt: string | null;
+export type Audience = {
+  geography: { name: string; pct: number }[];
+  gender: { female: number; male: number } | null;
+  age: { label: string; pct: number }[];
+  summary: string | null;
+};
 
-  /** Median, not average — one viral post shouldn't set expectations. */
-  typical: {
-    views: number | null;
-    reach: number | null;
-    likes: number | null;
-    comments: number | null;
-    interactions: number | null;
+export type PlatformView = {
+  platform: Platform;
+  label: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  updatedAt: string | null;
+  tier: Tier;
+  followers: number | null;
+
+  engagement: {
+    rate: number | null;
+    /** vs. the snapshot ~30 days back. Null until the history exists. */
+    delta: Delta | null;
+    /** One point per day of history, oldest→newest. */
+    trend: number[];
+    verdict: Verdict | null;
+    verdictNote: string;
+    commentsRate: number | null;
+    likesPerComment: number | null;
+    breakdown: BreakdownStat[];
+    /** Interactions ÷ people reached — how the content did among those who saw it. */
+    byReach: number | null;
   };
-  engagementRate: number | null;
-  engagementByReach: number | null;
-  viewRate: number | null;
+
+  summary: SummaryMetric[];
+  postsPerWeek: number | null;
+  window: { days: number; posts: number } | null;
+
+  content: { top: Post[]; worst: Post[] };
+  /** Median of the recent posts. Medians, so one viral post doesn't set the bar. */
+  typical: { views: number | null; reach: number | null; likes: number | null; comments: number | null };
+  /** (saves + shares) ÷ reach. Instagram only — the distribution signal. */
   sendsPerReach: number | null;
-  effortShare: number | null;
-  cadence: number | null;
 
   score: number | null;
-  grade: ReturnType<typeof grade>;
+  scoreVerdict: Verdict | null;
   components: Component[];
-  headline: string;
 
-  items: Item[];
-  best: Item | null;
-  formats: { name: string; posts: number; views: number | null; engagement: number | null }[];
-  window: { days: number; posts: number } | null;
-  /**
-   * What a typical post's views would cost as bought media. A floor for a quote,
-   * not a rate card — the CPM band is carried along so the assumption is visible.
-   */
   mediaValue: { low: number; high: number; currency: string; cpm: [number, number] } | null;
-  /** Set when the platform only gave us part of the picture. */
   caveat: string | null;
 };
 
-const pct = (n: number | null, d = 1) => (n == null ? "—" : `${n.toFixed(d)}%`);
-const num = (n: number | null) => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
+const DASH = "—";
+const pct = (n: number | null, d = 1) => (n == null ? DASH : `${n.toFixed(d)}%`);
+const int = (n: number | null) => (n == null ? DASH : Math.round(n).toLocaleString("pt-BR"));
 
 function median(values: (number | null | undefined)[]): number | null {
   const xs = values.filter((v): v is number => v != null && Number.isFinite(v)).sort((a, b) => a - b);
@@ -119,18 +161,21 @@ function ratio(top: number | null, bottom: number | null | undefined): number | 
   return (top / bottom) * 100;
 }
 
-// Instagram reports every video post as VIDEO or REELS; both are Reels today.
-const IG_FORMATS: Record<string, string> = {
-  IMAGE: "Photo",
-  CAROUSEL_ALBUM: "Carousel",
-  VIDEO: "Reel",
-  REELS: "Reel",
+// Instagram reports video posts as VIDEO or REELS; both are Reels today.
+const IG_FORMATS: Record<string, { key: PostFormat; label: string }> = {
+  IMAGE: { key: "photo", label: "Foto" },
+  CAROUSEL_ALBUM: { key: "carousel", label: "Carrossel" },
+  VIDEO: { key: "reel", label: "Reel" },
+  REELS: { key: "reel", label: "Reel" },
 };
 
-function toItems(platform: Platform, stats: any): Item[] {
+type Internal = Post & { interactions: number | null; sends: number | null };
+
+function toPosts(platform: Platform, stats: any): Internal[] {
   const raw = (platform === "instagram" ? stats?.posts : stats?.videos) ?? [];
-  return raw.map((p: any): Item => {
-    const isIg = platform === "instagram";
+  const isIg = platform === "instagram";
+
+  return raw.map((p: any): Internal => {
     const likes = p.likes ?? null;
     const comments = p.comments ?? null;
     const saves = isIg ? p.saves ?? null : null;
@@ -138,226 +183,277 @@ function toItems(platform: Platform, stats: any): Item[] {
     const reach = isIg ? p.reach ?? null : null;
     const views = p.views ?? null;
 
-    // Instagram's own total_interactions already folds in saves and shares;
-    // fall back to adding up the parts when it's missing.
+    // Instagram's total_interactions already folds in saves and shares; fall
+    // back to adding up the parts when it's missing.
     const interactions = isIg
       ? p.totalInteractions ?? sum([likes, comments, saves, shares])
       : sum([likes, comments, shares]);
 
-    const denominator = reach ?? views;
-    const sends = sum([saves, shares]);
+    const fmt = isIg
+      ? IG_FORMATS[p.type] ?? { key: "photo" as PostFormat, label: "Post" }
+      : { key: "video" as PostFormat, label: "Vídeo" };
 
     return {
       id: String(p.id),
-      url: (isIg ? p.permalink : p.shareUrl) ?? null,
-      thumb: (isIg ? p.thumbnail : p.cover) ?? null,
-      caption: ((isIg ? p.caption : p.title) || "Untitled").replace(/\s+/g, " ").trim(),
-      format: isIg ? IG_FORMATS[p.type] ?? "Post" : "Video",
-      at: (isIg ? p.timestamp : p.createTime ? new Date(p.createTime * 1000).toISOString() : null) ?? null,
-      views,
-      reach,
+      format: fmt.key,
+      formatLabel: fmt.label,
+      caption: ((isIg ? p.caption : p.title) || "").replace(/\s+/g, " ").trim(),
+      er: ratio(interactions, reach ?? views),
       likes,
       comments,
       saves,
       shares,
-      sends,
+      views,
+      reach,
+      thumbnailUrl: (isIg ? p.thumbnail : p.cover) ?? null,
+      permalink: (isIg ? p.permalink : p.shareUrl) ?? null,
+      postedAt:
+        (isIg ? p.timestamp : p.createTime ? new Date(p.createTime * 1000).toISOString() : null) ?? null,
       interactions,
-      engagementByReach: ratio(interactions, denominator),
-      sendsPerReach: isIg ? ratio(sends, reach) : null,
+      sends: sum([saves, shares]),
     };
   });
 }
 
-/** Posts per week across the span the posts actually cover. */
-function cadenceOf(items: Item[]): { cadence: number | null; window: Analysis["window"] } {
-  const times = items
-    .map((i) => (i.at ? new Date(i.at).getTime() : null))
+function cadenceOf(posts: Internal[]): { cadence: number | null; window: PlatformView["window"] } {
+  const times = posts
+    .map((p) => (p.postedAt ? new Date(p.postedAt).getTime() : null))
     .filter((t): t is number => t != null && Number.isFinite(t));
   if (times.length < 2) return { cadence: null, window: null };
-  const newest = Math.max(...times);
-  const oldest = Math.min(...times);
-  const days = Math.max(1, (newest - oldest) / 86_400_000);
+  const days = Math.max(1, (Math.max(...times) - Math.min(...times)) / 86_400_000);
   return { cadence: (times.length / days) * 7, window: { days: Math.round(days), posts: times.length } };
 }
 
-function formatBreakdown(items: Item[]): Analysis["formats"] {
-  const groups = new Map<string, Item[]>();
-  for (const it of items) groups.set(it.format, [...(groups.get(it.format) ?? []), it]);
-  return [...groups.entries()]
-    // Two posts is the least that says anything; one is an anecdote.
-    .filter(([, list]) => list.length >= 2)
-    .map(([name, list]) => ({
-      name,
-      posts: list.length,
-      views: median(list.map((i) => i.views)),
-      engagement: median(list.map((i) => i.engagementByReach)),
-    }))
-    .sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
-}
+const KIND_LABELS: Record<EngagementKind, string> = {
+  likes: "Curtidas",
+  comments: "Comentários",
+  saves: "Salvos",
+  shares: "Enviados",
+};
 
-export function analyze(platform: Platform, stats: any): Analysis | null {
+export type HistoryInput = {
+  /** Follower counts oldest→newest, for the summary sparkline. */
+  followerTrend: number[];
+  followerDelta: Delta | null;
+  /** Engagement rate per snapshot, oldest→newest. */
+  erTrend: number[];
+  erDelta: Delta | null;
+  growthPct: number | null;
+};
+
+export function analyze(
+  platform: Platform,
+  stats: any,
+  history?: HistoryInput | null
+): PlatformView | null {
   if (!stats) return null;
 
+  const isIg = platform === "instagram";
   const followers: number | null = stats.followers ?? null;
   const tier = tierFor(followers);
-  const items = toItems(platform, stats);
-  const { cadence, window } = cadenceOf(items);
+  const posts = toPosts(platform, stats);
+  const { cadence, window } = cadenceOf(posts);
 
   const typical = {
-    views: median(items.map((i) => i.views)),
-    reach: median(items.map((i) => i.reach)),
-    likes: median(items.map((i) => i.likes)),
-    comments: median(items.map((i) => i.comments)),
-    interactions: median(items.map((i) => i.interactions)),
+    views: median(posts.map((p) => p.views)),
+    reach: median(posts.map((p) => p.reach)),
+    likes: median(posts.map((p) => p.likes)),
+    comments: median(posts.map((p) => p.comments)),
   };
+  const typicalInteractions = median(posts.map((p) => p.interactions));
 
-  const engagementRate = ratio(typical.interactions, followers);
-  const engagementByReach = median(items.map((i) => i.engagementByReach));
+  const engagementRate = ratio(typicalInteractions, followers);
+  const byReach = median(posts.map((p) => p.er));
   const viewRate = ratio(typical.views, followers);
-  const sendsPerReach = median(items.map((i) => i.sendsPerReach));
+  const sendsPerReach = isIg ? median(posts.map((p) => ratio(p.sends, p.reach))) : null;
+  const commentsRate = ratio(typical.comments, followers);
+  const likesPerComment =
+    typical.likes != null && typical.comments ? typical.likes / typical.comments : null;
 
   // Share of reactions that cost the viewer something: a comment, a save, a
-  // send to a friend. Likes are free; these are the ones platforms rank on.
-  const totalInteractions = sum(items.map((i) => i.interactions));
-  const totalEffort = sum(
-    items.flatMap((i) => [i.comments, i.saves, i.shares].filter((v) => v != null))
-  );
+  // send to a friend. Likes are free; these are what platforms rank on.
+  const totalInteractions = sum(posts.map((p) => p.interactions));
+  const totalEffort = sum(posts.flatMap((p) => [p.comments, p.saves, p.shares].filter((v) => v != null)));
   const effortShare = ratio(totalEffort, totalInteractions);
 
-  // Three posts is the floor. Rating an account off one post is a coin flip
-  // dressed up as a number, so below the floor we show the measurements and
-  // withhold the score rather than guess.
-  const enough = items.length >= MIN_POSTS_TO_SCORE;
+  const breakdown: BreakdownStat[] = (
+    ["likes", "comments", "saves", "shares"] as EngagementKind[]
+  )
+    .map((kind) => ({ kind, label: KIND_LABELS[kind], count: sum(posts.map((p) => p[kind])) }))
+    // TikTok has no saves; render N columns, never an empty cell.
+    .filter((b): b is BreakdownStat => b.count != null);
+
+  const enough = posts.length >= MIN_POSTS_TO_SCORE;
 
   const components: Component[] = [
     {
       key: "engagement",
-      label: "Engagement",
+      label: "Engajamento",
       weight: 0.4,
       score: scoreAt(engagementRate, engagementAnchors(tier)),
       display: pct(engagementRate, 2),
       benchmark: `${tier.name}: ${tier.band[0]}–${tier.band[1]}%`,
-      note: `Reactions on a typical post as a share of the ${num(followers)} followers. Graded against what's normal for a ${tier.name.toLowerCase()} account, because engagement falls as an audience grows.`,
+      note: `Reações em um post típico sobre os ${int(followers)} seguidores. Avaliado contra o normal para uma conta ${tier.name.toLowerCase()}, porque o engajamento cai conforme a audiência cresce.`,
     },
     {
       key: "reach",
-      label: "Reach",
+      label: "Alcance",
       weight: 0.25,
       score: scoreAt(viewRate, VIEW_RATE_ANCHORS),
       display: pct(viewRate),
-      benchmark: "10% floor, 30% typical",
-      note: `A typical post is seen ${num(typical.views)} times. This is the check on follower count: a big audience that never watches is worth less than a small one that does.`,
+      benchmark: "10% piso, 30% típico",
+      note: `Um post típico é visto ${int(typical.views)} vezes. É a checagem do número de seguidores: uma audiência grande que não assiste vale menos que uma pequena que assiste.`,
     },
     {
       key: "impact",
-      label: "Impact",
+      label: "Impacto",
       weight: 0.2,
-      score: scoreAt(
-        effortShare,
-        platform === "instagram" ? EFFORT_SHARE_ANCHORS : EFFORT_SHARE_ANCHORS_TIKTOK
-      ),
+      score: scoreAt(effortShare, isIg ? EFFORT_SHARE_ANCHORS : EFFORT_SHARE_ANCHORS_TIKTOK),
       display: pct(effortShare),
-      benchmark: platform === "instagram" ? "8% normal, 20%+ strong" : "5% normal, 12%+ strong",
-      note:
-        platform === "instagram"
-          ? "Share of reactions that were comments, saves or shares rather than likes. A send is worth roughly 3–5 likes to the algorithm, so this is what moves a post beyond the existing audience."
-          : "Share of reactions that were comments or shares rather than likes. Cheap likes inflate a rate; these don't.",
+      benchmark: isIg ? "8% normal, 20%+ forte" : "5% normal, 12%+ forte",
+      note: isIg
+        ? "Fatia das reações que foram comentários, salvamentos ou envios em vez de curtidas. Um envio vale cerca de 3 a 5 curtidas para o algoritmo, então é isso que leva o post além da audiência atual."
+        : "Fatia das reações que foram comentários ou compartilhamentos em vez de curtidas. Curtidas baratas inflam uma taxa; estas não.",
     },
     {
       key: "consistency",
-      label: "Consistency",
+      label: "Consistência",
       weight: 0.15,
       score: scoreAt(cadence, CADENCE_ANCHORS),
-      display: cadence == null ? "—" : `${cadence.toFixed(1)}/wk`,
-      benchmark: "3/wk strong",
+      display: cadence == null ? DASH : `${cadence.toFixed(1)}/sem`,
+      benchmark: "3/sem forte",
       note: window
-        ? `${window.posts} posts over the last ${window.days} days. Cadence is what makes delivery predictable when a campaign is booked.`
-        : "Not enough dated posts yet to measure a rhythm.",
+        ? `${window.posts} posts nos últimos ${window.days} dias. Cadência é o que torna a entrega previsível quando uma campanha é fechada.`
+        : "Ainda não há posts datados suficientes para medir um ritmo.",
     },
   ];
 
+  // Rating an account off one or two posts is a coin flip with a number on it.
   if (!enough) for (const c of components) c.score = null;
 
-  // Re-weight across the components we could actually measure, so a missing
-  // metric doesn't quietly drag the score down.
   const scored = components.filter((c) => c.score != null);
   const weight = scored.reduce((a, c) => a + c.weight, 0);
   const score = weight ? Math.round(scored.reduce((a, c) => a + c.score! * c.weight, 0) / weight) : null;
 
-  const best =
-    items.filter((i) => i.views != null || i.interactions != null).sort(
-      (a, b) => (b.views ?? b.interactions ?? 0) - (a.views ?? a.interactions ?? 0)
-    )[0] ?? null;
+  const ranked = posts.filter((p) => p.er != null).sort((a, b) => b.er! - a.er!);
 
-  const mediaValue =
-    typical.views != null
-      ? {
-          low: (typical.views / 1000) * CPM.low,
-          high: (typical.views / 1000) * CPM.high,
-          currency: CPM.currency,
-          cpm: [CPM.low, CPM.high] as [number, number],
-        }
-      : null;
+  const summary: SummaryMetric[] = [
+    {
+      key: "followers",
+      label: "Seguidores",
+      value: followers,
+      unit: null,
+      delta: history?.followerDelta ?? null,
+      verdict: null,
+      trend: history?.followerTrend,
+    },
+    {
+      key: "growth",
+      label: "Crescimento",
+      value: history?.growthPct ?? null,
+      unit: "%",
+      delta: null,
+      verdict: null,
+    },
+    {
+      key: "score",
+      label: "Pulse score",
+      value: score,
+      unit: "/100",
+      delta: null,
+      verdict: verdictFor(score),
+    },
+    {
+      key: "reach",
+      label: isIg ? "Alcance médio" : "Views médias",
+      value: isIg ? typical.reach ?? typical.views : typical.views,
+      unit: null,
+      delta: null,
+      verdict: verdictFor(scoreAt(viewRate, VIEW_RATE_ANCHORS)),
+    },
+  ];
 
-  const withReach = items.filter((i) => i.reach != null).length;
-  const caveat =
-    platform === "instagram" && items.length > 0 && withReach < items.length
-      ? `Reach and saves came back for ${withReach} of ${items.length} posts — Instagram doesn't report them for every media type.`
-      : platform === "tiktok"
-      ? "TikTok's API doesn't return reach or audience demographics, so those aren't shown."
-      : null;
+  const withReach = posts.filter((p) => p.reach != null).length;
+  const caveat = isIg
+    ? posts.length > 0 && withReach < posts.length
+      ? `Alcance e salvamentos vieram para ${withReach} de ${posts.length} posts — o Instagram não reporta esses números para todo tipo de mídia.`
+      : null
+    : "A API do TikTok não retorna alcance nem dados demográficos da audiência, então eles não aparecem aqui.";
 
   return {
     platform,
+    label: isIg ? "Instagram" : "TikTok",
     handle: stats.username ?? null,
-    followers,
-    tier,
+    avatarUrl: stats.avatar_url ?? null,
     updatedAt: stats.updated_at ?? null,
-    typical,
-    engagementRate,
-    engagementByReach,
-    viewRate,
-    sendsPerReach,
-    effortShare,
-    cadence,
-    score,
-    grade: grade(score),
-    components,
-    headline: enough
-      ? headlineFor(components, score)
-      : `Only ${items.length} recent post${items.length === 1 ? "" : "s"} to go on — the score appears at ${MIN_POSTS_TO_SCORE}.`,
-    items,
-    best,
-    formats: formatBreakdown(items),
+    tier,
+    followers,
+
+    engagement: {
+      rate: engagementRate,
+      delta: history?.erDelta ?? null,
+      trend: history?.erTrend ?? [],
+      verdict: verdictFor(components[0].score),
+      verdictNote: "vs. contas do mesmo porte",
+      commentsRate,
+      likesPerComment,
+      breakdown,
+      byReach,
+    },
+
+    summary,
+    postsPerWeek: cadence,
     window,
-    mediaValue,
+
+    content: { top: ranked.slice(0, 4), worst: ranked.slice(-3).reverse() },
+    typical,
+    sendsPerReach,
+
+    score,
+    scoreVerdict: verdictFor(score),
+    components,
+
+    mediaValue:
+      typical.views != null
+        ? {
+            low: (typical.views / 1000) * CPM.low,
+            high: (typical.views / 1000) * CPM.high,
+            currency: CPM.currency,
+            cpm: [CPM.low, CPM.high] as [number, number],
+          }
+        : null,
     caveat,
   };
 }
 
-/** One sentence naming the strongest and weakest thing about this account. */
-function headlineFor(components: Component[], score: number | null): string {
-  const scored = components.filter((c) => c.score != null);
-  if (score == null || scored.length < 2) return "Not enough posts yet to rate this account.";
-  const sorted = [...scored].sort((a, b) => b.score! - a.score!);
-  const top = sorted[0];
-  const bottom = sorted[sorted.length - 1];
-  if (top.score! - bottom.score! < 15) return `Even across the board — nothing stands out either way.`;
-  return `${top.label} is the strength (${top.score}/100). ${bottom.label} is what's holding the score down (${bottom.score}/100).`;
-}
+const GENDER_KEYS: Record<string, "female" | "male"> = { F: "female", M: "male" };
 
-export type Audience = {
-  age: { key: string; pct: number }[];
-  gender: { key: string; pct: number }[];
-  country: { key: string; pct: number }[];
-  /** e.g. "Mostly women, 25–34, in Brazil (61% of the audience)". */
-  summary: string | null;
+const COUNTRY_NAMES: Record<string, string> = {
+  BR: "Brasil",
+  PT: "Portugal",
+  US: "Estados Unidos",
+  AR: "Argentina",
+  ES: "Espanha",
+  FR: "França",
+  DE: "Alemanha",
+  IT: "Itália",
+  GB: "Reino Unido",
+  JP: "Japão",
+  MX: "México",
+  CL: "Chile",
+  CO: "Colômbia",
+  UY: "Uruguai",
+  PY: "Paraguai",
+  CA: "Canadá",
+  AU: "Austrália",
+  NL: "Países Baixos",
+  CH: "Suíça",
+  AO: "Angola",
+  MZ: "Moçambique",
 };
 
-const GENDER_NAMES: Record<string, string> = { F: "Women", M: "Men", U: "Unspecified" };
-
 /**
- * Instagram's follower_demographics come back as raw counts per breakdown.
+ * Instagram returns follower demographics as raw counts per breakdown.
  * Percentages are what a brief is actually written against.
  */
 export function audienceFrom(demographics: any): Audience | null {
@@ -367,38 +463,56 @@ export function audienceFrom(demographics: any): Audience | null {
     if (!rows?.length) return [];
     const total = rows.reduce((a, r) => a + (r.value ?? 0), 0);
     if (!total) return [];
-    return rows
-      .map((r) => ({ key: String(r.key), pct: ((r.value ?? 0) / total) * 100 }))
-      .sort((a, b) => b.pct - a.pct);
+    return rows.map((r) => ({ key: String(r.key), pct: ((r.value ?? 0) / total) * 100 }));
   };
 
-  // Age brackets are ordinal — they stay in their natural order, because a bar
+  // Age brackets are ordinal — they keep their natural order, because a bar
   // chart of ages sorted by size is unreadable.
-  const age = share(demographics.age).sort((a, b) => a.key.localeCompare(b.key, "en", { numeric: true }));
-  const gender = share(demographics.gender).map((g) => ({ ...g, key: GENDER_NAMES[g.key] ?? g.key }));
-  const country = share(demographics.country);
-  if (!age.length && !gender.length && !country.length) return null;
+  const age = share(demographics.age)
+    .sort((a, b) => a.key.localeCompare(b.key, "pt-BR", { numeric: true }))
+    .map((a) => ({ label: a.key.replace("-", "–"), pct: a.pct }));
 
-  const biggest = (rows: { key: string; pct: number }[]) =>
-    rows.length ? rows.reduce((a, b) => (b.pct > a.pct ? b : a)) : null;
+  const geography = share(demographics.country)
+    .sort((a, b) => b.pct - a.pct)
+    .map((c) => ({ name: COUNTRY_NAMES[c.key] ?? c.key, pct: c.pct }));
 
-  const topAge = biggest(age);
+  const genderRows = share(demographics.gender);
+  const known = genderRows.filter((g) => GENDER_KEYS[g.key]);
+  const knownTotal = known.reduce((a, g) => a + g.pct, 0);
+  // Instagram reports an "U" bucket; rebase F/M over the known share so the
+  // pair reads as a split rather than mysteriously summing to 77%.
+  const gender = knownTotal
+    ? {
+        female: ((known.find((g) => g.key === "F")?.pct ?? 0) / knownTotal) * 100,
+        male: ((known.find((g) => g.key === "M")?.pct ?? 0) / knownTotal) * 100,
+      }
+    : null;
+
+  if (!age.length && !geography.length && !gender) return null;
+
+  const topAge = age.length ? age.reduce((a, b) => (b.pct > a.pct ? b : a)) : null;
   const parts: string[] = [];
-  if (gender[0]) parts.push(`${Math.round(gender[0].pct)}% ${gender[0].key.toLowerCase()}`);
-  if (topAge) parts.push(`mostly ${topAge.key}`);
-  if (country[0]) parts.push(`${Math.round(country[0].pct)}% in ${country[0].key}`);
+  if (gender) {
+    const dominant = gender.female >= gender.male ? "mulheres" : "homens";
+    parts.push(`${Math.round(Math.max(gender.female, gender.male))}% ${dominant}`);
+  }
+  if (topAge) parts.push(`na maioria ${topAge.label}`);
+  if (geography[0]) parts.push(`${Math.round(geography[0].pct)}% no ${geography[0].name}`);
 
-  return { age, gender, country, summary: parts.length ? parts.join(", ") : null };
+  return { geography, gender, age, summary: parts.length ? parts.join(", ") : null };
 }
 
 /** One number per creator for the roster, weighted by where the audience is. */
-export function overallScore(analyses: (Analysis | null)[]): number | null {
-  const xs = analyses.filter((a): a is Analysis => a?.score != null);
+export function overallScore(views: (PlatformView | null)[]): number | null {
+  const xs = views.filter((v): v is PlatformView => v?.score != null);
   if (!xs.length) return null;
   const weight = xs.reduce((a, x) => a + Math.max(1, x.followers ?? 1), 0);
-  return Math.round(
-    xs.reduce((a, x) => a + x.score! * Math.max(1, x.followers ?? 1), 0) / weight
-  );
+  return Math.round(xs.reduce((a, x) => a + x.score! * Math.max(1, x.followers ?? 1), 0) / weight);
 }
 
-export { SENDS_PER_REACH_BAND };
+/** Paid-partnership detection. One predicate, used by both the tile and the count. */
+export const PUBLI_RE = /#(publi|publicidade|ad|ads|paid|parceria|publipost)\b/i;
+
+export function isPaid(post: Post): boolean {
+  return PUBLI_RE.test(post.caption ?? "");
+}

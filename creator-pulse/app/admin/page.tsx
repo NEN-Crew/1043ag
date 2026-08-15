@@ -1,85 +1,83 @@
+import { Suspense } from "react";
 import { isAdmin } from "@/lib/auth";
 import { getRoster } from "@/lib/report";
-import { compact } from "@/lib/format";
+import { formatCount, formatRate } from "@/lib/format";
 import AdminGate from "@/components/AdminGate";
 import CreateInfluencer from "@/components/CreateInfluencer";
-import Roster from "@/components/Roster";
-import LogoutButton from "@/components/LogoutButton";
+import Ranking from "@/components/Ranking";
+import TopBar from "@/components/TopBar";
+import { Eyebrow } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
+  // The roster is the whole client list — staff only, enforced here on the
+  // server. Hiding the switcher is not access control.
   if (!isAdmin()) {
     return (
       <main className="auth">
-        <div className="auth-card card card-pad">
-          <span className="wordmark">Pulse<span className="dot">.</span></span>
-          <p className="subtle" style={{ textAlign: "center", marginTop: -8, marginBottom: 22 }}>
-            Agency view
-          </p>
+        <div className="auth-card">
+          <div className="wordmark" style={{ marginBottom: 6 }}>1043 AG</div>
+          <p className="caption" style={{ marginBottom: 24 }}>Visão agência</p>
           <AdminGate />
         </div>
       </main>
     );
   }
 
-  const reports = await getRoster();
-  const connected = reports.filter((r) => r.connected.instagram || r.connected.tiktok);
-  const followers = sum(reports.map((r) => r.totalFollowers));
-  const viewsPerRound = sum(reports.map((r) => r.summary.viewsPerPost));
-  const scores = reports.map((r) => r.overall).filter((s): s is number => s != null);
-  const medianScore = scores.length
-    ? [...scores].sort((a, b) => a - b)[Math.floor(scores.length / 2)]
-    : null;
+  const roster = await getRoster();
+  const { meta } = roster;
 
   return (
     <>
-      <header className="topbar">
-        <span className="wordmark">Pulse<span className="dot">.</span></span>
-        <LogoutButton />
-      </header>
-
-      <main className="shell wide stack">
-        <div>
-          <h1 className="page-title">Roster</h1>
-          <p className="subtle">
-            {reports.length} creator{reports.length === 1 ? "" : "s"}, {connected.length} connected.
-            Numbers refresh daily; hit Refresh on a row to pull them now.
-          </p>
-        </div>
-
-        {connected.length > 0 && (
-          <div className="card card-pad">
-            <div className="kpis">
-              <div className="kpi">
-                <span className="figure">{compact(followers)}</span>
-                <span className="label">Combined followers</span>
+      <TopBar view="agencia" staff />
+      <main className="shell">
+        <div className="field grain">
+          <div className="field-head" style={{ alignItems: "flex-end" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <Eyebrow onDark>Agência · roster</Eyebrow>
+              <h1 className="page-h1">Visão agência</h1>
+              <p style={{ fontSize: 13, color: "rgba(229,229,229,0.82)", margin: 0 }}>
+                Todos os creators da 1043, ranqueados por engajamento.
+              </p>
+            </div>
+            <div className="field-stats">
+              <div>
+                <div className="field-stat-label">Creators</div>
+                <div className="field-stat-value">{meta.creatorCount}</div>
               </div>
-              <div className="kpi">
-                <span className="figure">{compact(viewsPerRound)}</span>
-                <span className="label">Views if everyone posts once</span>
+              <div>
+                <div className="field-stat-label">ER médio</div>
+                <div className="field-stat-value">{formatRate(meta.avgEr)}%</div>
               </div>
-              <div className="kpi">
-                <span className="figure">{medianScore ?? "—"}</span>
-                <span className="label">Median Pulse Score</span>
+              <div>
+                <div className="field-stat-label">Alcance total</div>
+                <div className="field-stat-value">{formatCount(meta.totalReach)}</div>
               </div>
             </div>
           </div>
+        </div>
+
+        {meta.creatorCount === 0 ? (
+          <section className="section first">
+            <div className="section-body">
+              <p className="caption">Nenhum creator ainda. Adicione o primeiro abaixo.</p>
+            </div>
+            <div className="section-index" aria-hidden="true">01</div>
+          </section>
+        ) : (
+          <Suspense fallback={<div style={{ height: 320 }} />}>
+            <Ranking roster={roster} />
+          </Suspense>
         )}
 
         <CreateInfluencer />
 
-        {reports.length === 0 ? (
-          <div className="card card-pad subtle">No creators yet. Add your first one above.</div>
-        ) : (
-          <Roster reports={reports} />
-        )}
+        <div className="footer">
+          <span>1043 AG · creator performance</span>
+          <span>uso interno</span>
+        </div>
       </main>
     </>
   );
-}
-
-function sum(values: (number | null)[]): number | null {
-  const xs = values.filter((v): v is number => v != null);
-  return xs.length ? xs.reduce((a, b) => a + b, 0) : null;
 }

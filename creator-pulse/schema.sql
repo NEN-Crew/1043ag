@@ -42,6 +42,9 @@ create table if not exists instagram_stats (
 -- Migration for databases created before the insights columns existed.
 alter table instagram_stats add column if not exists account_insights jsonb;
 alter table instagram_stats add column if not exists demographics jsonb;
+-- Profile photo, for the masthead. A CDN link that expires, so it's re-pulled
+-- on every refresh and the UI falls back to a placeholder.
+alter table instagram_stats add column if not exists avatar_url text;
 
 create table if not exists tiktok_stats (
   influencer_id text primary key references influencers(id) on delete cascade,
@@ -53,6 +56,8 @@ create table if not exists tiktok_stats (
   videos        jsonb not null default '[]',
   updated_at    timestamptz not null default now()
 );
+
+alter table tiktok_stats add column if not exists avatar_url text;
 
 -- Append-only snapshots, one row per refresh, so history is never lost.
 -- post_metrics/video_metrics hold slim per-item numbers (no captions/urls)

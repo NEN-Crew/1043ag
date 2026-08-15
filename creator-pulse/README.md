@@ -22,6 +22,41 @@ Instagram and TikTok numbers are stored in **separate tables**, one row per
 creator each, so the split is always clear. Every refresh also appends a
 snapshot to the history tables, which is where growth over time comes from.
 
+## The design system
+
+The UI is a Swiss / editorial grid, in **Brazilian Portuguese**. Four rules hold it
+together — break one and the screen looks wrong even when every measurement is right:
+
+1. **Four colours only.** Cobalt `#1649D6`, orange-red `#FF3B00`, ink `#202020`,
+   hairline `#E5E5E5`, plus paper white. "Good" reads cobalt, "attention" reads
+   orange-red. No greens, no ambers, no secondary palette.
+2. **Everything is flat.** `border-radius: 0` everywhere, no shadows, no gradients.
+   Separation is 1px hairlines, never elevation.
+3. **Two typefaces, extreme contrast.** DM Serif Display for headlines and every
+   large number; Courier Prime for everything else. **There is no sans-serif** —
+   body text *is* the monospace.
+4. **Numbers are the art.** The engagement rate is set at up to 184px; its label is
+   11px uppercase mono. That contrast is the identity.
+
+Tokens live at the top of `app/globals.css`; primitives (`Eyebrow`, `Section`,
+`Stat`, `DeltaTag`, `VerdictChip`, `Sparkline`, `BarRow`) live in `components/ui.tsx`.
+Both typefaces are self-hosted through `next/font`.
+
+**Engagement rate governs the screen.** It is the biggest number, the first thing
+rendered, and what the roster ranks by. Everything else — reach, cadence, the Pulse
+Score — is supporting evidence, sized and placed accordingly.
+
+Two screens:
+
+- `/me` — the creator's own report.
+- `/admin` — the agency roster, ranked. Staff only, enforced server-side.
+- `/admin/[id]` — drill-down into one creator, same report plus media value.
+
+The roster ranks one row **per account**, not per person: comparing an Instagram ER
+against a TikTok ER is meaningless, so the network filter is what produces a
+like-for-like ranking, and the bar scale is relative to the filtered set. Filter and
+sort live in the URL (`?rede=tiktok&ordem=seguidores`) so a view is shareable.
+
 ## What the numbers mean
 
 Follower counts don't decide campaigns, so the dashboard leads with a **Pulse
@@ -172,15 +207,33 @@ lib/
   instagram.ts      Instagram OAuth + stats
   tiktok.ts         TikTok OAuth + stats
   benchmarks.ts     every published benchmark, in one place
-  metrics.ts        raw stats -> Pulse Score, rates, formats, media value
-  history.ts        follower growth from the snapshot tables
-  report.ts         build a report / a whole roster / refresh a creator
+  metrics.ts        raw stats -> the view model the screens consume
+  history.ts        follower + engagement trends from the snapshot tables
+  report.ts         one creator / the whole roster / refresh
   crypto.ts         password hashing, token encryption, signed cookies
   auth.ts           session cookies
-  format.ts         number formatting + status tones
+  format.ts         pt-BR number, date and delta formatting
+components/
+  ui.tsx            Eyebrow · Section · Stat · DeltaTag · Verdict · Sparkline · BarRow
+  Icons.tsx         the icon set (functional only — nothing decorative)
+  CreatorView.tsx   masthead + sections 01–06
+  Ranking.tsx       the agency roster, filtered and sorted
+  TopBar.tsx        shared chrome
 schema.sql          the six tables
 scripts/setup-db.ts npm run db:setup
 ```
+
+### Not built (and why)
+
+- **Audience quality** — AQS, authenticity, follower composition and
+  massfollowing detection are provider metrics (HypeAuditor, Modash). The official
+  Instagram and TikTok APIs will never return them, so that section isn't rendered
+  rather than shipped permanently empty. Engagement-vs-tier and view rate are the
+  partial substitute already on screen.
+- **`.pptx` export** — worth having for client decks; not built yet.
+- **Real branded-content flags** — PUBLI detection reads the caption
+  (`#publi`, `#ad`, `#parceria`…). A creator who forgets the hashtag shows as
+  organic.
 
 ## Notes
 

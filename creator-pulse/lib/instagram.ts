@@ -147,7 +147,10 @@ export async function fetchStats(accessToken: string) {
   const profileRes = await fetch(
     `${GRAPH}/me?` +
       new URLSearchParams({
-        fields: "user_id,username,account_type,followers_count,follows_count,media_count",
+        // profile_picture_url is a CDN link that expires; we re-pull it on
+        // every refresh and the UI degrades to a placeholder if it's gone.
+        fields:
+          "user_id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count",
         access_token: accessToken,
       })
   );
@@ -185,6 +188,7 @@ export async function fetchStats(accessToken: string) {
 
   return {
     username: profile.username ?? null,
+    avatarUrl: profile.profile_picture_url ?? null,
     followers: profile.followers_count ?? null,
     following: profile.follows_count ?? null,
     mediaCount: profile.media_count ?? null,

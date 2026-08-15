@@ -65,7 +65,8 @@ export async function fetchStats(accessToken: string) {
   const userRes = await fetch(
     `${API}/v2/user/info/?` +
       new URLSearchParams({
-        fields: "open_id,display_name,follower_count,following_count,likes_count,video_count",
+        fields:
+          "open_id,display_name,avatar_url_100,follower_count,following_count,likes_count,video_count",
       }),
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
@@ -100,6 +101,7 @@ export async function fetchStats(accessToken: string) {
 
   return {
     username: user.display_name ?? null,
+    avatarUrl: user.avatar_url_100 ?? null,
     followers: user.follower_count ?? null,
     following: user.following_count ?? null,
     likesTotal: user.likes_count ?? null,

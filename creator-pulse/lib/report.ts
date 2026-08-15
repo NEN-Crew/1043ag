@@ -1,139 +1,184 @@
 import { sql } from "./db";
 import { decrypt, encrypt } from "./crypto";
-import { GrowthByPlatform, getGrowth } from "./history";
-import { Analysis, Audience, analyze, audienceFrom, overallScore } from "./metrics";
+import { HistoryByPlatform, emptyHistory, getHistory } from "./history";
+import {
+  Audience,
+  Delta,
+  PlatformView,
+  Verdict,
+  analyze,
+  audienceFrom,
+  delta,
+  overallScore,
+  verdictFor,
+} from "./metrics";
 import * as ig from "./instagram";
 import * as tt from "./tiktok";
 
-export type Report = {
+export type CreatorReport = {
   influencer: { id: string; name: string; email: string };
   connected: { instagram: boolean; tiktok: boolean };
-  instagram: any | null;
-  tiktok: any | null;
-  /** The raw numbers turned into something you can act on. */
-  analysis: { instagram: Analysis | null; tiktok: Analysis | null };
-  growth: GrowthByPlatform;
+  /** Only the platforms this creator actually has — drives which tabs render. */
+  platforms: PlatformView[];
   audience: Audience | null;
   /** Follower-weighted score across the connected platforms. */
   overall: number | null;
   totalFollowers: number | null;
-  /** Both platforms rolled into the numbers the roster sorts on. */
-  summary: {
-    viewsPerPost: number | null;
-    /** Total typical interactions ÷ total followers, so the bigger account weighs more. */
-    engagementRate: number | null;
-    mediaValue: Analysis["mediaValue"];
-    updatedAt: string | null;
-  };
 };
 
-function summarise(analyses: (Analysis | null)[]): Report["summary"] {
-  const xs = analyses.filter((a): a is Analysis => a != null);
-  const add = (pick: (a: Analysis) => number | null | undefined) => {
-    const vals = xs.map(pick).filter((v): v is number => v != null);
-    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
-  };
+/** One row of the agency ranking. Engagement rate is the ranking key. */
+export type RosterEntry = {
+  creatorId: string;
+  name: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  platform: "instagram" | "tiktok";
+  platformLabel: string;
+  er: number | null;
+  erDelta: Delta | null;
+  followers: number | null;
+  growth: number | null;
+  growthDelta: Delta | null;
+  verdict: Verdict | null;
+  updatedAt: string | null;
+};
 
-  const followers = add((a) => a.followers);
-  const interactions = add((a) => a.typical.interactions);
-  const low = add((a) => a.mediaValue?.low);
-  const high = add((a) => a.mediaValue?.high);
-  const band = xs.find((a) => a.mediaValue)?.mediaValue;
-
-  return {
-    viewsPerPost: add((a) => a.typical.views),
-    engagementRate: interactions != null && followers ? (interactions / followers) * 100 : null,
-    mediaValue:
-      low != null && high != null && band ? { low, high, currency: band.currency, cpm: band.cpm } : null,
-    updatedAt: xs.map((a) => a.updatedAt).filter(Boolean).sort().slice(-1)[0] ?? null,
-  };
-}
+export type AgencyRoster = {
+  meta: { creatorCount: number; connectedCount: number; avgEr: number | null; totalReach: number | null };
+  creators: RosterEntry[];
+  /** Creators with nothing connected yet — listed separately, never ranked. */
+  pending: { id: string; name: string; email: string }[];
+};
 
 function assemble(
   inf: { id: string; name: string; email: string },
-  platforms: Set<string>,
+  connected: Set<string>,
   igStats: any | null,
   ttStats: any | null,
-  growth: GrowthByPlatform
-): Report {
-  const analysis = {
-    instagram: platforms.has("instagram") ? analyze("instagram", igStats) : null,
-    tiktok: platforms.has("tiktok") ? analyze("tiktok", ttStats) : null,
-  };
-  const followers = [igStats?.followers, ttStats?.followers].filter((f) => f != null) as number[];
+  history: HistoryByPlatform
+): CreatorReport {
+  const views = [
+    connected.has("instagram") ? analyze("instagram", igStats, history.instagram) : null,
+    connected.has("tiktok") ? analyze("tiktok", ttStats, history.tiktok) : null,
+  ].filter((v): v is PlatformView => v != null);
+
+  const followers = views.map((v) => v.followers).filter((f): f is number => f != null);
 
   return {
     influencer: inf,
-    connected: { instagram: platforms.has("instagram"), tiktok: platforms.has("tiktok") },
-    instagram: igStats,
-    tiktok: ttStats,
-    analysis,
-    growth,
+    connected: { instagram: connected.has("instagram"), tiktok: connected.has("tiktok") },
+    platforms: views,
     audience: audienceFrom(igStats?.demographics),
-    overall: overallScore([analysis.instagram, analysis.tiktok]),
+    overall: overallScore(views),
     totalFollowers: followers.length ? followers.reduce((a, b) => a + b, 0) : null,
-    summary: summarise([analysis.instagram, analysis.tiktok]),
   };
 }
 
-export async function getReport(influencerId: string): Promise<Report | null> {
+export async function getReport(influencerId: string): Promise<CreatorReport | null> {
   const inf = (await sql`select id, name, email from influencers where id = ${influencerId}`)[0];
   if (!inf) return null;
 
-  const [conns, igRows, ttRows, growth] = await Promise.all([
+  const [conns, igRows, ttRows, history] = await Promise.all([
     sql`select platform from connections where influencer_id = ${influencerId}`,
     sql`select * from instagram_stats where influencer_id = ${influencerId}`,
     sql`select * from tiktok_stats where influencer_id = ${influencerId}`,
-    getGrowth([influencerId]),
+    getHistory([influencerId]),
   ]);
 
-  const platforms = new Set((conns as any[]).map((c) => c.platform));
   return assemble(
     { id: inf.id, name: inf.name, email: inf.email },
-    platforms,
+    new Set((conns as any[]).map((c) => c.platform)),
     igRows[0] ?? null,
     ttRows[0] ?? null,
-    growth.get(influencerId) ?? { instagram: null, tiktok: null }
+    history.get(influencerId) ?? emptyHistory
   );
 }
 
 /**
- * Every creator, fully analysed, in a fixed number of queries. The admin page
- * used to fetch one report per creator from the browser; the roster is the
- * whole point of that page, so it's built server-side in one pass.
+ * The whole roster, analysed, in a fixed number of queries.
+ *
+ * A creator active on both platforms produces one ranking row per platform:
+ * comparing an Instagram ER against a TikTok ER is meaningless, so the row is
+ * the unit of comparison, not the person, and the network filter is what makes
+ * the ranking like-for-like.
  */
-export async function getRoster(): Promise<Report[]> {
+export async function getRoster(): Promise<AgencyRoster> {
   const influencers = (await sql`
     select id, name, email from influencers order by created_at desc
   `) as any[];
-  if (!influencers.length) return [];
+
+  if (!influencers.length) {
+    return { meta: { creatorCount: 0, connectedCount: 0, avgEr: null, totalReach: null }, creators: [], pending: [] };
+  }
 
   const ids = influencers.map((i) => i.id);
-  const [conns, igRows, ttRows, growth] = await Promise.all([
+  const [conns, igRows, ttRows, history] = await Promise.all([
     sql`select influencer_id, platform from connections where influencer_id = any(${ids}::text[])`,
     sql`select * from instagram_stats where influencer_id = any(${ids}::text[])`,
     sql`select * from tiktok_stats where influencer_id = any(${ids}::text[])`,
-    getGrowth(ids),
+    getHistory(ids),
   ]);
 
-  const platformsBy = new Map<string, Set<string>>();
+  const connBy = new Map<string, Set<string>>();
   for (const c of conns as any[]) {
-    const set = platformsBy.get(c.influencer_id) ?? new Set<string>();
+    const set = connBy.get(c.influencer_id) ?? new Set<string>();
     set.add(c.platform);
-    platformsBy.set(c.influencer_id, set);
+    connBy.set(c.influencer_id, set);
   }
   const igBy = new Map((igRows as any[]).map((r) => [r.influencer_id, r]));
   const ttBy = new Map((ttRows as any[]).map((r) => [r.influencer_id, r]));
 
-  return influencers.map((inf) =>
-    assemble(
+  const creators: RosterEntry[] = [];
+  const pending: AgencyRoster["pending"] = [];
+
+  for (const inf of influencers) {
+    const connected = connBy.get(inf.id) ?? new Set<string>();
+    if (!connected.size) {
+      pending.push({ id: inf.id, name: inf.name, email: inf.email });
+      continue;
+    }
+    const hist = history.get(inf.id) ?? emptyHistory;
+    const report = assemble(
       { id: inf.id, name: inf.name, email: inf.email },
-      platformsBy.get(inf.id) ?? new Set(),
+      connected,
       igBy.get(inf.id) ?? null,
       ttBy.get(inf.id) ?? null,
-      growth.get(inf.id) ?? { instagram: null, tiktok: null }
-    )
-  );
+      hist
+    );
+
+    for (const v of report.platforms) {
+      const h = v.platform === "instagram" ? hist.instagram : hist.tiktok;
+      creators.push({
+        creatorId: inf.id,
+        name: inf.name,
+        handle: v.handle,
+        avatarUrl: v.avatarUrl,
+        platform: v.platform,
+        platformLabel: v.label,
+        er: v.engagement.rate,
+        erDelta: h.erDelta,
+        followers: v.followers,
+        growth: h.growthPct,
+        growthDelta: delta(h.growthPct, "pct"),
+        verdict: v.engagement.verdict ?? verdictFor(v.score),
+        updatedAt: v.updatedAt,
+      });
+    }
+  }
+
+  const ers = creators.map((c) => c.er).filter((e): e is number => e != null);
+  const reach = creators.map((c) => c.followers).filter((f): f is number => f != null);
+
+  return {
+    meta: {
+      creatorCount: influencers.length,
+      connectedCount: influencers.length - pending.length,
+      avgEr: ers.length ? ers.reduce((a, b) => a + b, 0) / ers.length : null,
+      totalReach: reach.length ? reach.reduce((a, b) => a + b, 0) : null,
+    },
+    creators,
+    pending,
+  };
 }
 
 /** Pull fresh numbers from every connected platform and store them. */
@@ -156,14 +201,15 @@ export async function refreshInfluencer(influencerId: string): Promise<string[]>
         }
         const s = await ig.fetchStats(token);
         await sql`
-          insert into instagram_stats (influencer_id, username, followers, following, media_count, posts,
-                                       account_insights, demographics, updated_at)
-          values (${influencerId}, ${s.username}, ${s.followers}, ${s.following}, ${s.mediaCount},
+          insert into instagram_stats (influencer_id, username, avatar_url, followers, following, media_count,
+                                       posts, account_insights, demographics, updated_at)
+          values (${influencerId}, ${s.username}, ${s.avatarUrl}, ${s.followers}, ${s.following}, ${s.mediaCount},
                   ${JSON.stringify(s.posts)}::jsonb,
                   ${s.accountInsights ? JSON.stringify(s.accountInsights) : null}::jsonb,
                   ${s.demographics ? JSON.stringify(s.demographics) : null}::jsonb, now())
           on conflict (influencer_id) do update set
-            username = excluded.username, followers = excluded.followers, following = excluded.following,
+            username = excluded.username, avatar_url = excluded.avatar_url,
+            followers = excluded.followers, following = excluded.following,
             media_count = excluded.media_count, posts = excluded.posts,
             account_insights = excluded.account_insights, demographics = excluded.demographics,
             updated_at = now()`;
@@ -196,11 +242,13 @@ export async function refreshInfluencer(influencerId: string): Promise<string[]>
         }
         const s = await tt.fetchStats(token);
         await sql`
-          insert into tiktok_stats (influencer_id, username, followers, following, likes_total, video_count, videos, updated_at)
-          values (${influencerId}, ${s.username}, ${s.followers}, ${s.following}, ${s.likesTotal},
+          insert into tiktok_stats (influencer_id, username, avatar_url, followers, following, likes_total,
+                                    video_count, videos, updated_at)
+          values (${influencerId}, ${s.username}, ${s.avatarUrl}, ${s.followers}, ${s.following}, ${s.likesTotal},
                   ${s.videoCount}, ${JSON.stringify(s.videos)}::jsonb, now())
           on conflict (influencer_id) do update set
-            username = excluded.username, followers = excluded.followers, following = excluded.following,
+            username = excluded.username, avatar_url = excluded.avatar_url,
+            followers = excluded.followers, following = excluded.following,
             likes_total = excluded.likes_total, video_count = excluded.video_count,
             videos = excluded.videos, updated_at = now()`;
         const videoMetrics = s.videos.map((v: any) => ({

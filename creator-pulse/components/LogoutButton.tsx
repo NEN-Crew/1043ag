@@ -5,5 +5,5 @@ export default function LogoutButton() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
   }
-  return <button className="btn" onClick={logout}>Sign out</button>;
+  return <button className="btn" onClick={logout}>Sair</button>;
 }

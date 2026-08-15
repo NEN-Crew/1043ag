@@ -1,35 +1,86 @@
-// Counts are whole things. Medians of an even number of posts land on a .5, and
-// "210.5 likes" reads like a bug, so display rounds.
-export function compact(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "—";
-  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
-  if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "k";
-  return String(Math.round(n));
+/**
+ * pt-BR formatting. One module, used everywhere — the screen is mostly
+ * numbers, so an inconsistency here is glaring. Comma is the decimal
+ * separator, period the thousands separator.
+ */
+
+const nf = (min: number, max: number) =>
+  new Intl.NumberFormat("pt-BR", { minimumFractionDigits: min, maximumFractionDigits: max });
+
+const DASH = "—";
+
+/** A rate, one decimal: 4.2 → "4,2". The % is a separate element (§8.3). */
+export function formatRate(n: number | null | undefined, decimals = 1): string {
+  if (n == null || !Number.isFinite(n)) return DASH;
+  return nf(decimals, decimals).format(n);
 }
 
-export function full(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "—";
-  return Math.round(n).toLocaleString("en-US");
+/** Whole numbers with pt-BR thousands separators: 12345 → "12.345". */
+export function formatNumber(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return DASH;
+  return nf(0, 0).format(Math.round(n));
 }
 
 /**
- * Status colour for a 0–100 score. The thresholds are the grade boundaries, so
- * a bar never reads as a warning while the label beside it says "Solid".
+ * Abbreviated counts. `style: "k"` for compact cells (520k), `style: "mil"`
+ * for the prose-ish breakdown cells (112 mil). Millions are always "mi".
  */
-export function toneFor(score: number | null | undefined): "pos" | "warn" | "neg" | "none" {
-  if (score == null) return "none";
-  if (score >= 55) return "pos";
-  if (score >= 40) return "warn";
-  return "neg";
+export function formatCount(n: number | null | undefined, style: "k" | "mil" = "k"): string {
+  if (n == null || !Number.isFinite(n)) return DASH;
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${nf(1, 1).format(n / 1_000_000)} mi`;
+  if (abs >= 1_000) {
+    const thousands = Math.round(n / 1000);
+    return style === "mil" ? `${nf(0, 0).format(thousands)} mil` : `${nf(0, 0).format(thousands)}k`;
+  }
+  return nf(0, 0).format(Math.round(n));
 }
 
-export function ago(iso: string | null | undefined): string {
-  if (!iso) return "never";
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+/**
+ * A signed delta. `pp` = percentage points (for rates) and renders bare;
+ * `pct` = percent (for counts) and carries a % sign. The arrow glyph is
+ * drawn by CSS so colour and direction never disagree.
+ */
+export function formatDelta(value: number, unit: "pp" | "pct"): string {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  const body = nf(1, 1).format(Math.abs(value));
+  return unit === "pct" ? `${sign}${body}%` : `${sign}${body}`;
 }
+
+/** "62 : 1" — spaces around the colon. */
+export function formatRatio(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return DASH;
+  return `${nf(0, 0).format(Math.round(n))} : 1`;
+}
+
+/** "5,2 posts / semana" */
+export function formatCadence(n: number | null | undefined, noun = "posts"): string {
+  if (n == null || !Number.isFinite(n)) return DASH;
+  return `${nf(1, 1).format(n)} ${noun} / semana`;
+}
+
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return DASH;
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+/** "atualizado agora" / "atualizado há 3 dias" */
+export function formatFreshness(iso: string | null | undefined): string {
+  if (!iso) return "nunca atualizado";
+  const hours = (Date.now() - new Date(iso).getTime()) / 3_600_000;
+  if (hours < 1) return "atualizado agora";
+  if (hours < 24) return `atualizado há ${Math.floor(hours)}h`;
+  const days = Math.floor(hours / 24);
+  return `atualizado há ${days} ${days === 1 ? "dia" : "dias"}`;
+}
+
+/** "out/2025" — lowercase abbreviated pt-BR. */
+export function formatMonth(iso: string): string {
+  return new Date(iso)
+    .toLocaleDateString("pt-BR", { month: "short", year: "numeric" })
+    .replace(".", "")
+    .replace(" de ", "/")
+    .toLowerCase();
+}
+
+export const dash = DASH;

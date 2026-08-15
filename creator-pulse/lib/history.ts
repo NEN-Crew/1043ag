@@ -1,92 +1,139 @@
 import { sql } from "./db";
+import { Delta, HistoryInput, delta } from "./metrics";
 
 /**
- * Follower history from the append-only snapshot tables. Growth is the one
- * number that needs time to appear, so everything here degrades to null rather
- * than inventing a trend from two days of data.
+ * Trends from the append-only snapshot tables. Growth and period-over-period
+ * comparison are the two things that need time to exist, so everything here
+ * returns null rather than inventing a trend from two days of data.
  */
-export type Growth = {
-  points: { at: string; followers: number }[];
-  /** Change over the window, and the same as a percentage. Null until we have the history. */
-  change7: number | null;
-  change30: number | null;
-  pct7: number | null;
-  pct30: number | null;
-  /** First snapshot we hold, so the UI can say how long it's been tracking. */
-  since: string | null;
+
+type Row = {
+  influencer_id: string;
+  followers: number | null;
+  captured_at: string;
+  post_metrics?: any[] | null;
+  video_metrics?: any[] | null;
 };
 
-type Row = { influencer_id: string; followers: number | null; captured_at: string };
+function median(values: (number | null | undefined)[]): number | null {
+  const xs = values.filter((v): v is number => v != null && Number.isFinite(v)).sort((a, b) => a - b);
+  if (!xs.length) return null;
+  const mid = Math.floor(xs.length / 2);
+  return xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
+}
 
-function build(rows: Row[]): Growth | null {
-  const points = rows
+/** Engagement rate at the moment a snapshot was taken. */
+function erAt(row: Row, platform: "instagram" | "tiktok"): number | null {
+  const items = (platform === "instagram" ? row.post_metrics : row.video_metrics) ?? [];
+  if (!items.length || !row.followers) return null;
+  const interactions = items.map((m: any) =>
+    platform === "instagram"
+      ? m.totalInteractions ?? add([m.likes, m.comments, m.saves, m.shares])
+      : add([m.likes, m.comments, m.shares])
+  );
+  const typical = median(interactions);
+  return typical == null ? null : (typical / row.followers) * 100;
+}
+
+function add(xs: (number | null | undefined)[]): number | null {
+  const ok = xs.filter((v): v is number => v != null && Number.isFinite(v));
+  return ok.length ? ok.reduce((a, b) => a + b, 0) : null;
+}
+
+/** The cron runs daily but manual refreshes add extra rows; keep one per day. */
+function oncePerDay(rows: Row[]): Row[] {
+  const byDay = new Map<string, Row>();
+  for (const r of rows) byDay.set(new Date(r.captured_at).toISOString().slice(0, 10), r);
+  return [...byDay.values()].sort(
+    (a, b) => new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime()
+  );
+}
+
+function build(rows: Row[], platform: "instagram" | "tiktok"): HistoryInput {
+  const daily = oncePerDay(rows);
+
+  const followerPoints = daily
     .filter((r) => r.followers != null)
-    .map((r) => ({ at: new Date(r.captured_at).toISOString(), followers: r.followers as number }));
-  if (!points.length) return null;
+    .map((r) => ({ at: new Date(r.captured_at).getTime(), value: r.followers as number }));
 
-  const latest = points[points.length - 1];
+  const erPoints = daily
+    .map((r) => ({ at: new Date(r.captured_at).getTime(), value: erAt(r, platform) }))
+    .filter((p): p is { at: number; value: number } => p.value != null);
 
-  // Only claim an N-day change once a snapshot exists that is genuinely that
-  // old — at least 60% of the window — otherwise the number flatters itself.
-  const changeOver = (days: number): number | null => {
+  /**
+   * Only claim an N-day change once a snapshot exists that is genuinely that
+   * old — at least 60% of the window — otherwise the number flatters itself.
+   */
+  const changeOver = (points: { at: number; value: number }[], days: number) => {
+    if (points.length < 2) return null;
+    const latest = points[points.length - 1];
     const target = Date.now() - days * 86_400_000;
-    const older = points.filter((p) => new Date(p.at).getTime() <= target);
+    const older = points.filter((p) => p.at <= target);
     const base = older.length ? older[older.length - 1] : points[0];
-    const age = (Date.now() - new Date(base.at).getTime()) / 86_400_000;
-    if (age < days * 0.6) return null;
-    return latest.followers - base.followers;
+    if ((Date.now() - base.at) / 86_400_000 < days * 0.6) return null;
+    return { from: base.value, to: latest.value };
   };
 
-  const change7 = changeOver(7);
-  const change30 = changeOver(30);
-  const asPct = (change: number | null) =>
-    change == null || latest.followers - change <= 0 ? null : (change / (latest.followers - change)) * 100;
+  const followerChange = changeOver(followerPoints, 30);
+  const erChange = changeOver(erPoints, 30);
+
+  const growthPct =
+    followerChange && followerChange.from > 0
+      ? ((followerChange.to - followerChange.from) / followerChange.from) * 100
+      : null;
 
   return {
-    points,
-    change7,
-    change30,
-    pct7: asPct(change7),
-    pct30: asPct(change30),
-    since: points[0].at,
+    followerTrend: followerPoints.map((p) => p.value),
+    // Followers are a count, so its delta is a percentage.
+    followerDelta: delta(growthPct, "pct"),
+    erTrend: erPoints.map((p) => p.value),
+    // Engagement is already a rate, so its delta is in percentage points.
+    erDelta: erChange ? (delta(erChange.to - erChange.from, "pp") as Delta) : null,
+    growthPct,
   };
 }
 
-export type GrowthByPlatform = { instagram: Growth | null; tiktok: Growth | null };
+export type HistoryByPlatform = { instagram: HistoryInput; tiktok: HistoryInput };
 
-/** Growth for many creators in two queries, for the admin roster. */
-export async function getGrowth(ids: string[]): Promise<Map<string, GrowthByPlatform>> {
-  const out = new Map<string, GrowthByPlatform>();
+const EMPTY: HistoryInput = {
+  followerTrend: [],
+  followerDelta: null,
+  erTrend: [],
+  erDelta: null,
+  growthPct: null,
+};
+
+/** History for many creators in two queries, for the agency roster. */
+export async function getHistory(ids: string[]): Promise<Map<string, HistoryByPlatform>> {
+  const out = new Map<string, HistoryByPlatform>();
   if (!ids.length) return out;
 
   const [igRows, ttRows] = await Promise.all([
-    sql`select influencer_id, followers, captured_at from instagram_stats_history
-        where influencer_id = any(${ids}::text[]) and captured_at > now() - interval '120 days'
+    sql`select influencer_id, followers, captured_at, post_metrics
+        from instagram_stats_history
+        where influencer_id = any(${ids}::text[]) and captured_at > now() - interval '400 days'
         order by captured_at asc`,
-    sql`select influencer_id, followers, captured_at from tiktok_stats_history
-        where influencer_id = any(${ids}::text[]) and captured_at > now() - interval '120 days'
+    sql`select influencer_id, followers, captured_at, video_metrics
+        from tiktok_stats_history
+        where influencer_id = any(${ids}::text[]) and captured_at > now() - interval '400 days'
         order by captured_at asc`,
   ]);
-  const ig = igRows as Row[];
-  const tt = ttRows as Row[];
 
   const group = (rows: Row[]) => {
     const m = new Map<string, Row[]>();
     for (const r of rows) m.set(r.influencer_id, [...(m.get(r.influencer_id) ?? []), r]);
     return m;
   };
-  const igBy = group(ig);
-  const ttBy = group(tt);
+  const igBy = group(igRows as Row[]);
+  const ttBy = group(ttRows as Row[]);
 
   for (const id of ids) {
     out.set(id, {
-      instagram: build(igBy.get(id) ?? []),
-      tiktok: build(ttBy.get(id) ?? []),
+      instagram: build(igBy.get(id) ?? [], "instagram"),
+      tiktok: build(ttBy.get(id) ?? [], "tiktok"),
     });
   }
   return out;
 }
 
-export async function getGrowthFor(id: string): Promise<GrowthByPlatform> {
-  return (await getGrowth([id])).get(id) ?? { instagram: null, tiktok: null };
-}
+export const emptyHistory: HistoryByPlatform = { instagram: EMPTY, tiktok: EMPTY };
