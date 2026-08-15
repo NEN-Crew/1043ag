@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getInfluencerId } from "@/lib/auth";
 import { getReport } from "@/lib/report";
 import PlatformCard from "@/components/PlatformCard";
+import AudienceCard from "@/components/AudienceCard";
+import ScoreHero from "@/components/ScoreHero";
 import LogoutButton from "@/components/LogoutButton";
 import SelfRefresh from "@/components/SelfRefresh";
 
@@ -19,6 +21,7 @@ export default async function MePage({
   if (!report) redirect("/login");
 
   const { connected } = report;
+  const anyConnected = connected.instagram || connected.tiktok;
   const allConnected = connected.instagram && connected.tiktok;
 
   return (
@@ -31,8 +34,8 @@ export default async function MePage({
       <main className="shell stack">
         <div>
           <h1 className="page-title">Hi, {report.influencer.name.split(" ")[0]}</h1>
-          <p className="subtle">Your Instagram and TikTok numbers, in one place.</p>
-          {(connected.instagram || connected.tiktok) && <SelfRefresh influencerId={id} />}
+          <p className="subtle">How your Instagram and TikTok are actually performing.</p>
+          {anyConnected && <SelfRefresh influencerId={id} />}
         </div>
 
         {searchParams.connected && (
@@ -42,13 +45,15 @@ export default async function MePage({
           <div className="notice err">That connection didn’t go through. Try again, or ask the agency for a hand.</div>
         )}
 
+        {anyConnected && <ScoreHero report={report} />}
+
         {!allConnected && (
           <div className="card card-pad">
             <div className="row-name" style={{ marginBottom: 6 }}>
-              {connected.instagram || connected.tiktok ? "Connect your other account" : "Connect your accounts"}
+              {anyConnected ? "Connect your other account" : "Connect your accounts"}
             </div>
             <p className="subtle" style={{ marginTop: 0 }}>
-              You’ll be sent to {connected.instagram || connected.tiktok ? "the platform" : "Instagram or TikTok"} to approve access. We only read your public stats.
+              You’ll be sent to {anyConnected ? "the platform" : "Instagram or TikTok"} to approve access. We only read your public stats.
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {!connected.instagram && (
@@ -61,8 +66,14 @@ export default async function MePage({
           </div>
         )}
 
-        {connected.instagram && <PlatformCard platform="instagram" stats={report.instagram} />}
-        {connected.tiktok && <PlatformCard platform="tiktok" stats={report.tiktok} />}
+        {connected.instagram && (
+          <PlatformCard analysis={report.analysis.instagram} growth={report.growth.instagram} />
+        )}
+        {connected.tiktok && (
+          <PlatformCard analysis={report.analysis.tiktok} growth={report.growth.tiktok} />
+        )}
+
+        <AudienceCard audience={report.audience} />
       </main>
     </>
   );

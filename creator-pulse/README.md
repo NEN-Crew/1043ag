@@ -12,13 +12,82 @@ Built to be simple: one Next.js app, one Postgres database, deploys to Vercel.
 - **Creators** log in (with an email + password you create for them) at `/login`,
   land on `/me`, and click **Connect Instagram / Connect TikTok**. After that
   they see their own numbers.
-- **The agency** opens `/admin` (one shared password), sees every creator, and
-  hits **Refresh** to pull the latest numbers. The agency view also creates
-  creator accounts.
-- Refresh is **manual** — nothing runs in the background. You click, it fetches.
+- **The agency** opens `/admin` (one shared password), gets a sortable roster of
+  every creator, and can open any of them for the full breakdown. The agency view
+  also creates creator accounts.
+- Numbers refresh **daily** via Vercel Cron. Anyone can also pull them on demand:
+  the agency without limit, a creator once every 12h.
 
 Instagram and TikTok numbers are stored in **separate tables**, one row per
-creator each, so the split is always clear.
+creator each, so the split is always clear. Every refresh also appends a
+snapshot to the history tables, which is where growth over time comes from.
+
+## What the numbers mean
+
+Follower counts don't decide campaigns, so the dashboard leads with a **Pulse
+Score** (0–100) per platform and one follower-weighted score per creator.
+
+It's four components, each measured against a published benchmark and each shown
+with its own number so nothing is a black box:
+
+| Component | Weight | What it measures | Normal |
+| --- | --- | --- | --- |
+| **Engagement** | 40% | Reactions on a typical post ÷ followers | the account's size band (nano 3–5% → mega 0.5–1%) |
+| **Reach** | 25% | Views on a typical post ÷ followers | 10% floor, ~30% typical |
+| **Impact** | 20% | Share of reactions that were comments, saves or shares rather than likes | 8% normal, 20%+ strong (IG) |
+| **Consistency** | 15% | Posts per week across the observed window | 3/wk strong |
+
+Every component uses the same scale, so a 70 always means the same thing:
+
+- **50** — the bottom of what's normal
+- **80** — the top of what's normal
+- **100** — double the top
+
+Deliberate choices worth knowing about:
+
+- **Medians, not averages.** One viral post shouldn't reset expectations for the
+  next brief.
+- **Engagement is graded against the account's size band.** Engagement falls as
+  an audience grows, so 2% means something very different at 5k and at 5M.
+- **Saves and shares are the point.** A send is worth roughly 3–5 likes to the
+  algorithm and a save around 10, so Instagram cards surface *sends per reach*
+  (1–2% is solid) — the metric that predicts whether a post escapes the existing
+  audience. Follower count doesn't.
+- **Missing data is dropped, not punished.** Instagram doesn't return reach for
+  every media type and TikTok returns no saves at all. Components we can't
+  measure are left out and the rest re-weighted, and TikTok's Impact band is
+  scaled to the signals its API actually gives us.
+- **Below three recent posts there's no score.** Rating an account off one post
+  is a coin flip with a number on it.
+- **Media value is agency-only** and is a bought-media floor: a typical post's
+  views priced at the configured CPM. It's a starting point for a quote, not a
+  rate card — creator fees normally sit above it. Set `MEDIA_VALUE_CURRENCY`,
+  `MEDIA_VALUE_CPM_LOW` and `MEDIA_VALUE_CPM_HIGH` to match your market
+  (defaults: R$15–35, the Brazilian band).
+
+All of it lives in `lib/benchmarks.ts` — one file, so there's exactly one place
+to argue with when the market moves.
+
+<details>
+<summary>Where the benchmark numbers come from</summary>
+
+- Engagement bands by follower tier —
+  [Influency.me](https://ajuda.influency.me/pt-BR/articles/11458998-engajamento-como-calcular-e-qual-e-a-taxa-ideal),
+  corroborated by
+  [2026 tier benchmarks](https://nowadays.media/blog/influencer-engagement-rate-benchmarks-2026-by-platform-niche-follower-tier/)
+- View rate (5–10% good, 10%+ excellent) —
+  [Influency.me metrics guide](https://ajuda.influency.me/pt-BR/articles/13534180-guia-de-metricas-da-plataforma-influency-me)
+- Reels reach rate ~31% —
+  [Socialinsider](https://www.socialinsider.io/social-media-benchmarks/instagram)
+- Sends/saves outweighing likes; 1–2% sends-per-reach —
+  [Instagram algorithm 2026](https://blog.hootsuite.com/instagram-algorithm/),
+  [analysis](https://creatorflow.so/blog/instagram-algorithm-2026/)
+- TikTok engagement medians —
+  [Dash Social](https://www.dashsocial.com/social-media-benchmarks/tiktok)
+- Brazilian CPM band R$15–35 —
+  [Veeras](https://veeras.com.br/blog/quanto-custa-contratar-influenciador-digital)
+
+</details>
 
 ## Deploy to Vercel
 
@@ -102,11 +171,14 @@ lib/
   db.ts             Postgres (Neon) connection
   instagram.ts      Instagram OAuth + stats
   tiktok.ts         TikTok OAuth + stats
-  report.ts         build a report / refresh a creator
+  benchmarks.ts     every published benchmark, in one place
+  metrics.ts        raw stats -> Pulse Score, rates, formats, media value
+  history.ts        follower growth from the snapshot tables
+  report.ts         build a report / a whole roster / refresh a creator
   crypto.ts         password hashing, token encryption, signed cookies
   auth.ts           session cookies
-  format.ts         number formatting
-schema.sql          the four tables
+  format.ts         number formatting + status tones
+schema.sql          the six tables
 scripts/setup-db.ts npm run db:setup
 ```
 

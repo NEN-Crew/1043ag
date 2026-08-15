@@ -1,8 +1,9 @@
 import { isAdmin } from "@/lib/auth";
-import { sql } from "@/lib/db";
+import { getRoster } from "@/lib/report";
+import { compact } from "@/lib/format";
 import AdminGate from "@/components/AdminGate";
 import CreateInfluencer from "@/components/CreateInfluencer";
-import AdminInfluencer from "@/components/AdminInfluencer";
+import Roster from "@/components/Roster";
 import LogoutButton from "@/components/LogoutButton";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +23,14 @@ export default async function AdminPage() {
     );
   }
 
-  const influencers = (await sql`
-    select id, name, email from influencers order by created_at desc
-  `) as any[];
+  const reports = await getRoster();
+  const connected = reports.filter((r) => r.connected.instagram || r.connected.tiktok);
+  const followers = sum(reports.map((r) => r.totalFollowers));
+  const viewsPerRound = sum(reports.map((r) => r.summary.viewsPerPost));
+  const scores = reports.map((r) => r.overall).filter((s): s is number => s != null);
+  const medianScore = scores.length
+    ? [...scores].sort((a, b) => a - b)[Math.floor(scores.length / 2)]
+    : null;
 
   return (
     <>
@@ -33,22 +39,47 @@ export default async function AdminPage() {
         <LogoutButton />
       </header>
 
-      <main className="shell stack">
+      <main className="shell wide stack">
         <div>
           <h1 className="page-title">Roster</h1>
-          <p className="subtle">{influencers.length} creator{influencers.length === 1 ? "" : "s"}. Hit refresh to pull the latest numbers.</p>
+          <p className="subtle">
+            {reports.length} creator{reports.length === 1 ? "" : "s"}, {connected.length} connected.
+            Numbers refresh daily; hit Refresh on a row to pull them now.
+          </p>
         </div>
+
+        {connected.length > 0 && (
+          <div className="card card-pad">
+            <div className="kpis">
+              <div className="kpi">
+                <span className="figure">{compact(followers)}</span>
+                <span className="label">Combined followers</span>
+              </div>
+              <div className="kpi">
+                <span className="figure">{compact(viewsPerRound)}</span>
+                <span className="label">Views if everyone posts once</span>
+              </div>
+              <div className="kpi">
+                <span className="figure">{medianScore ?? "—"}</span>
+                <span className="label">Median Pulse Score</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <CreateInfluencer />
 
-        {influencers.length === 0 ? (
+        {reports.length === 0 ? (
           <div className="card card-pad subtle">No creators yet. Add your first one above.</div>
         ) : (
-          influencers.map((inf) => (
-            <AdminInfluencer key={inf.id} id={inf.id} name={inf.name} email={inf.email} />
-          ))
+          <Roster reports={reports} />
         )}
       </main>
     </>
   );
+}
+
+function sum(values: (number | null)[]): number | null {
+  const xs = values.filter((v): v is number => v != null);
+  return xs.length ? xs.reduce((a, b) => a + b, 0) : null;
 }
