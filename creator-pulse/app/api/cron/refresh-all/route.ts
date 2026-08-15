@@ -10,8 +10,12 @@ export const dynamic = "force-dynamic";
 // "Authorization: Bearer <CRON_SECRET>" when the env var is set.
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const configured = Boolean(process.env.CRON_SECRET);
+  if (!configured || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    // `configured` says whether the deployment has a CRON_SECRET at all, which
+    // separates "the env var is missing" from "your copy of it differs". It
+    // reveals nothing about the value.
+    return NextResponse.json({ error: "Not authorized", configured }, { status: 403 });
   }
 
   const rows = await sql`select id from influencers`;
