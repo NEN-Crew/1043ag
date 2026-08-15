@@ -31,7 +31,6 @@
   --font-display: var(--font-dm-serif), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-courier-prime), "Courier New", ui-monospace, monospace;
 
-  --grid-step: 56px;   /* background grid module */
   --gutter: 88px;      /* right-hand number gutter on every section */
   --col-max: 1180px;
 }
@@ -68,22 +67,6 @@ img { display: block; }
   max-width: var(--col-max);
   margin: 0 auto;
   padding: 40px 28px 96px;
-}
-
-/* Fixed ruled grid behind everything, faded in over the first 120px so it
-   doesn't collide with the top bar. */
-.bg-grid {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, var(--line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
-  background-size: var(--grid-step) var(--grid-step);
-  opacity: 0.275;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 120px);
-  mask-image: linear-gradient(180deg, transparent 0, #000 120px);
 }
 
 /* Film grain on the coloured fields. */

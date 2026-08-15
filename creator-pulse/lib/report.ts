@@ -20,6 +20,11 @@ export type CreatorReport = {
   connected: { instagram: boolean; tiktok: boolean };
   /** Only the platforms this creator actually has — drives which tabs render. */
   platforms: PlatformView[];
+  /**
+   * One photo per creator, Instagram first. It's the same person either way,
+   * and the Instagram one is the account that actually keeps a profile photo.
+   */
+  avatarUrl: string | null;
   audience: Audience | null;
   /** Follower-weighted score across the connected platforms. */
   overall: number | null;
@@ -63,11 +68,16 @@ function assemble(
   ].filter((v): v is PlatformView => v != null);
 
   const followers = views.map((v) => v.followers).filter((f): f is number => f != null);
+  const avatarUrl =
+    views.find((v) => v.platform === "instagram" && v.avatarUrl)?.avatarUrl ??
+    views.find((v) => v.avatarUrl)?.avatarUrl ??
+    null;
 
   return {
     influencer: inf,
     connected: { instagram: connected.has("instagram"), tiktok: connected.has("tiktok") },
     platforms: views,
+    avatarUrl,
     audience: audienceFrom(igStats?.demographics),
     overall: overallScore(views),
     totalFollowers: followers.length ? followers.reduce((a, b) => a + b, 0) : null,
@@ -152,7 +162,8 @@ export async function getRoster(): Promise<AgencyRoster> {
         creatorId: inf.id,
         name: inf.name,
         handle: v.handle,
-        avatarUrl: v.avatarUrl,
+        // One face per creator across every row, not one per network.
+        avatarUrl: report.avatarUrl,
         platform: v.platform,
         platformLabel: v.label,
         er: v.engagement.rate,

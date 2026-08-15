@@ -26,10 +26,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className={`${display.variable} ${mono.variable}`}>
-      <body>
-        <div className="bg-grid" aria-hidden="true" />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
