@@ -14,6 +14,7 @@ import {
   formatRatio,
 } from "@/lib/format";
 import { BarRow, Caption, DeltaTag, Eyebrow, Section, Sparkline, Stat, VerdictChip } from "./ui";
+import Chart from "./Chart";
 import {
   Calendar,
   ChevronDown,
@@ -222,24 +223,6 @@ function Engagement({ view }: { view: PlatformView }) {
       first
       caption={`Engajamento · north star · ${view.label}`}
       title="engajamento"
-      headRight={
-        e.rate != null ? (
-          <div style={{ minWidth: 180, flex: "0 1 260px" }}>
-            <Caption style={{ marginBottom: 6 }}>taxa de engajamento · histórico</Caption>
-            {e.trend.length > 2 ? (
-              <Sparkline
-                data={e.trend}
-                w={220}
-                h={44}
-                baseline
-                label={`engajamento de ${formatRate(e.trend[0])}% a ${formatRate(e.trend[e.trend.length - 1])}%`}
-              />
-            ) : (
-              <Caption>a curva aparece conforme o histórico acumula</Caption>
-            )}
-          </div>
-        ) : undefined
-      }
     >
       <div className="hero-split">
         <div className="hero-col">
@@ -284,8 +267,36 @@ function Engagement({ view }: { view: PlatformView }) {
         )}
       </div>
 
+      <section className="block-chart">
+        <div style={{ marginBottom: 14 }}>
+          <Eyebrow>Engajamento dia a dia</Eyebrow>
+        </div>
+        {e.trend.length >= 2 ? (
+          <>
+            <Chart
+              points={e.trend}
+              label="taxa de engajamento"
+              format={(n) => `${formatRate(n)}%`}
+              formatDetail={(n) => `${formatRate(n, 2)}%`}
+              /* One percentage point. Day-to-day movement on the same posts is
+                 tiny, and without a floor the axis would magnify it into drama. */
+              minSpan={1}
+            />
+            <Caption style={{ marginTop: 10 }}>
+              Um ponto por dia. Toque, passe o mouse ou use as setas para ver o valor de cada dia.
+            </Caption>
+          </>
+        ) : (
+          <Caption>
+            {e.trend.length === 1
+              ? "Um dia registrado até agora. A curva começa a desenhar amanhã."
+              : "A curva aparece assim que houver dois dias registrados."}
+          </Caption>
+        )}
+      </section>
+
       {e.breakdown.length > 0 && (
-        <div style={{ marginTop: 22 }}>
+        <div style={{ marginTop: 26 }}>
           <div style={{ marginBottom: 12 }}>
             <Eyebrow>Tipos de engajamento · posts recentes</Eyebrow>
           </div>
@@ -349,11 +360,13 @@ function Reach({ view }: { view: PlatformView }) {
             <div className="spark-slot">
               {m.trend && m.trend.length > 2 && (
                 <Sparkline
-                  data={m.trend}
+                  data={m.trend.map((p) => p.value)}
                   w={210}
                   h={26}
                   color="var(--ink-300)"
-                  label={`${m.label}: de ${formatNumber(m.trend[0])} a ${formatNumber(m.trend[m.trend.length - 1])}`}
+                  label={`${m.label}: de ${formatNumber(m.trend[0].value)} a ${formatNumber(
+                    m.trend[m.trend.length - 1].value
+                  )}`}
                 />
               )}
             </div>
@@ -585,7 +598,7 @@ function HistoryDisclosure({ index, view }: { index: number; view: PlatformView 
 
   return (
     <Disclosure index={index} title="histórico" subtitle="seguidores e crescimento desde o início do acompanhamento">
-      {trend.length < 3 ? (
+      {trend.length < 2 ? (
         <Caption>
           O histórico começa a acumular a partir da primeira atualização e é registrado diariamente.
           A curva e a variação de 30 dias aparecem assim que houver dias suficientes.
@@ -609,14 +622,18 @@ function HistoryDisclosure({ index, view }: { index: number; view: PlatformView 
             )}
           </div>
           <div>
-            <div className="micro" style={{ marginBottom: 10 }}>Seguidores · histórico</div>
-            <Sparkline
-              data={trend}
-              w={760}
-              h={120}
-              baseline
-              label={`seguidores de ${formatNumber(trend[0])} a ${formatNumber(trend[trend.length - 1])}`}
+            <div className="micro" style={{ marginBottom: 12 }}>Seguidores · dia a dia</div>
+            <Chart
+              points={trend}
+              label="seguidores"
+              format={(n) => formatNumber(n)}
+              /* Followers barely move day to day on a nano account; without a
+                 floor, a handful of unfollows would look like a collapse. */
+              minSpan={Math.max(40, (view.followers ?? 0) * 0.01)}
             />
+            <Caption style={{ marginTop: 10 }}>
+              Um ponto por dia. Toque, passe o mouse ou use as setas para ver o valor de cada dia.
+            </Caption>
           </div>
           <span style={{ display: "inline-flex", alignItems: "flex-start", gap: 8 }}>
             <Info size={13} />

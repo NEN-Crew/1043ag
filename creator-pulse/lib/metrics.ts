@@ -30,6 +30,9 @@ export type Verdict = { label: string; tone: "good" | "warn" | "none" };
 
 export type Delta = { value: number; dir: Direction; unit: "pp" | "pct" };
 
+/** A dated observation. Charts need the date to label a hovered point. */
+export type TrendPoint = { at: string; value: number };
+
 export function delta(value: number | null | undefined, unit: "pp" | "pct"): Delta | null {
   if (value == null || !Number.isFinite(value)) return null;
   return { value, dir: value >= 0 ? "up" : "down", unit };
@@ -76,7 +79,7 @@ export type SummaryMetric = {
   unit: string | null;
   delta: Delta | null;
   verdict: Verdict | null;
-  trend?: number[];
+  trend?: TrendPoint[];
   /** Shown in the score disclosure, not on the cell. */
   note?: string;
 };
@@ -112,7 +115,7 @@ export type PlatformView = {
     /** vs. the snapshot ~30 days back. Null until the history exists. */
     delta: Delta | null;
     /** One point per day of history, oldest→newest. */
-    trend: number[];
+    trend: TrendPoint[];
     verdict: Verdict | null;
     verdictNote: string;
     commentsRate: number | null;
@@ -232,11 +235,11 @@ const KIND_LABELS: Record<EngagementKind, string> = {
 };
 
 export type HistoryInput = {
-  /** Follower counts oldest→newest, for the summary sparkline. */
-  followerTrend: number[];
+  /** Follower counts oldest→newest, one point per day. */
+  followerTrend: TrendPoint[];
   followerDelta: Delta | null;
-  /** Engagement rate per snapshot, oldest→newest. */
-  erTrend: number[];
+  /** Engagement rate per day, oldest→newest. */
+  erTrend: TrendPoint[];
   erDelta: Delta | null;
   growthPct: number | null;
 };

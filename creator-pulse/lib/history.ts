@@ -82,11 +82,14 @@ function build(rows: Row[], platform: "instagram" | "tiktok"): HistoryInput {
       ? ((followerChange.to - followerChange.from) / followerChange.from) * 100
       : null;
 
+  const dated = (points: { at: number; value: number }[]) =>
+    points.map((p) => ({ at: new Date(p.at).toISOString(), value: p.value }));
+
   return {
-    followerTrend: followerPoints.map((p) => p.value),
+    followerTrend: dated(followerPoints),
     // Followers are a count, so its delta is a percentage.
     followerDelta: delta(growthPct, "pct"),
-    erTrend: erPoints.map((p) => p.value),
+    erTrend: dated(erPoints),
     // Engagement is already a rate, so its delta is in percentage points.
     erDelta: erChange ? (delta(erChange.to - erChange.from, "pp") as Delta) : null,
     growthPct,

@@ -474,3 +474,6 @@ a.rank-row:hover { background: rgba(22, 73, 214, 0.05); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* A chart is a block in its own right, not an ornament in a section header. */
+.block-chart { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--line); }
