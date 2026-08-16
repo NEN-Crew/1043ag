@@ -99,7 +99,9 @@ export default function Chart({
   }
 
   return (
-    <div ref={wrap} style={{ position: "relative", width: "100%" }}>
+    // The SVG only exists once the container has been measured, so the height
+    // is reserved up front rather than letting the block pop in.
+    <div ref={wrap} style={{ position: "relative", width: "100%", minHeight: height }}>
       {geom && (
         <svg
           width={width}
