@@ -161,12 +161,18 @@ function Masthead({
             <h1 className="page-h1" style={{ overflowWrap: "break-word" }}>
               {view?.handle ? `@${view.handle}` : report.influencer.name}
             </h1>
+            {/* The handle, the photo and the tab are all per-network, so the
+                follower count has to be too. It used to sum both platforms and
+                sit here unchanged while you switched tabs, which read as a
+                broken number rather than as a total. */}
             <div className="field-meta">
               <b>{report.influencer.name}</b>
-              <span style={{ opacity: 0.5 }}>·</span>
-              <span>{formatCount(report.totalFollowers)} seguidores no total</span>
               {view && (
                 <>
+                  <span style={{ opacity: 0.5 }}>·</span>
+                  <span>
+                    {formatCount(view.followers)} seguidores no {view.label}
+                  </span>
                   <span style={{ opacity: 0.5 }}>·</span>
                   <span>{view.tier.name}</span>
                 </>
