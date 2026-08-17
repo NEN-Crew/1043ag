@@ -15,6 +15,8 @@ type Props = {
   label: string;
   color?: string;
   height?: number;
+  /** Content published on a given day, surfaced in that day's tooltip. */
+  markers?: { at: string; thumbnailUrl: string | null; caption: string }[];
   /**
    * Smallest y-range the axis is allowed to show. Without it the axis rescales
    * to whatever the data happens to span, and a 0,02 point wiggle is drawn as
@@ -34,8 +36,16 @@ export default function Chart({
   color = "var(--cobalt)",
   height = 190,
   minSpan,
+  markers,
 }: Props) {
   const detail = formatDetail ?? format;
+
+  const day = (iso: string) => iso.slice(0, 10);
+  const publishedBy = useMemo(() => {
+    const m = new Map<string, { thumbnailUrl: string | null; caption: string }[]>();
+    for (const k of markers ?? []) m.set(day(k.at), [...(m.get(day(k.at)) ?? []), k]);
+    return m;
+  }, [markers]);
   const wrap = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
@@ -246,6 +256,31 @@ export default function Chart({
           <div style={{ fontSize: 11, color: "rgba(229,229,229,0.72)", marginTop: 3 }}>
             {fullDateLabel(shown.at)}
           </div>
+          {(publishedBy.get(day(shown.at)) ?? []).slice(0, 2).map((k, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, marginTop: 8,
+                paddingTop: 8, borderTop: "1px solid rgba(229,229,229,0.22)", maxWidth: 230,
+              }}
+            >
+              {k.thumbnailUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={k.thumbnailUrl} alt="" width={30} height={30} style={{ objectFit: "cover", flex: "none" }} />
+              ) : (
+                <span style={{ width: 30, height: 30, background: "rgba(229,229,229,0.18)", flex: "none" }} />
+              )}
+              <span
+                style={{
+                  fontSize: 10.5, lineHeight: 1.35, color: "rgba(229,229,229,0.82)",
+                  overflow: "hidden", display: "-webkit-box",
+                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical", whiteSpace: "normal",
+                }}
+              >
+                {k.caption || "publicado nesse dia"}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

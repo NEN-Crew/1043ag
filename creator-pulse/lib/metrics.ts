@@ -38,13 +38,20 @@ export function delta(value: number | null | undefined, unit: "pp" | "pct"): Del
   return { value, dir: value >= 0 ? "up" : "down", unit };
 }
 
-/** A 0–100 score becomes one of the four Portuguese verdicts. */
+/**
+ * A 0–100 score becomes one of four verdicts.
+ *
+ * Descriptive, never a grade. A creator reads their own report, and "Ruim"
+ * stamped on their work lands as a verdict on them rather than on a number
+ * against a benchmark. "Abaixo da média" says the same thing and stays a
+ * measurement.
+ */
 export function verdictFor(score: number | null | undefined): Verdict | null {
   if (score == null) return null;
   if (score >= 85) return { label: "Excelente", tone: "good" };
   if (score >= 55) return { label: "Bom", tone: "good" };
-  if (score >= 40) return { label: "Médio", tone: "warn" };
-  return { label: "Ruim", tone: "warn" };
+  if (score >= 40) return { label: "Na média", tone: "warn" };
+  return { label: "Abaixo da média", tone: "warn" };
 }
 
 export type PostFormat = "reel" | "carousel" | "photo" | "video";
@@ -146,6 +153,12 @@ export type PlatformView = {
   typical: { views: number | null; reach: number | null; likes: number | null; comments: number | null };
   /** (saves + shares) ÷ reach. Instagram only — the distribution signal. */
   sendsPerReach: number | null;
+  /**
+   * What was published on each day, so a point on the daily chart can show the
+   * content behind it. The line itself is a rolling median across recent posts,
+   * not one post — this says what landed that day, it doesn't relabel the point.
+   */
+  published: { at: string; thumbnailUrl: string | null; caption: string }[];
 
   score: number | null;
   scoreVerdict: Verdict | null;
@@ -414,7 +427,9 @@ export function analyze(
       delta: history?.erDelta ?? null,
       trend: history?.erTrend ?? [],
       verdict: verdictFor(components[0].score),
-      verdictNote: "vs. contas do mesmo porte",
+      // Says what the chip is measured against, so the reader can check it
+      // instead of wondering where the word came from.
+      verdictNote: `${tier.name} · ${tier.band[0]}–${tier.band[1]}% é o esperado para esse porte`,
       commentsRate,
       likesPerComment,
       breakdown,
@@ -429,6 +444,9 @@ export function analyze(
     content: { higher: ranked.slice(0, 4), lower: ranked.slice(-3) },
     typical,
     sendsPerReach,
+    published: posts
+      .filter((p) => p.postedAt)
+      .map((p) => ({ at: p.postedAt!, thumbnailUrl: p.thumbnailUrl, caption: p.caption })),
 
     score,
     scoreVerdict: verdictFor(score),

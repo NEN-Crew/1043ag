@@ -256,10 +256,14 @@ function Engagement({ view }: { view: PlatformView }) {
           <Comment size={14} />
           taxa de comentários <b>{e.commentsRate == null ? dash : `${formatRate(e.commentsRate, 2)}%`}</b>
         </span>
-        <span className="support-item">
-          <Heart size={14} />
-          curtidas : comentários <b>{formatRatio(e.likesPerComment)}</b>
-        </span>
+        {/* Was "curtidas : comentários 9 : 1", which nobody could parse. Same
+            number, said out loud. A lower figure means more conversation. */}
+        {e.likesPerComment != null && (
+          <span className="support-item">
+            <Heart size={14} />
+            <b>1</b> comentário a cada <b>{formatNumber(e.likesPerComment)}</b> curtidas
+          </span>
+        )}
         {view.sendsPerReach != null && (
           <span className="support-item">
             <Users size={14} />
@@ -279,6 +283,7 @@ function Engagement({ view }: { view: PlatformView }) {
               label="taxa de engajamento"
               format={(n) => `${formatRate(n)}%`}
               formatDetail={(n) => `${formatRate(n, 2)}%`}
+              markers={view.published}
               /* One percentage point. Day-to-day movement on the same posts is
                  tiny, and without a floor the axis would magnify it into drama. */
               minSpan={1}
@@ -299,7 +304,9 @@ function Engagement({ view }: { view: PlatformView }) {
       {e.breakdown.length > 0 && (
         <div style={{ marginTop: 26 }}>
           <div style={{ marginBottom: 12 }}>
-            <Eyebrow>Tipos de engajamento · posts recentes</Eyebrow>
+            <Eyebrow>
+              Tipos de engajamento · soma dos {view.window?.posts ?? view.content.higher.length} posts
+            </Eyebrow>
           </div>
           <div
             className="ruled breakdown-grid"
@@ -311,10 +318,14 @@ function Engagement({ view }: { view: PlatformView }) {
                   <KindIcon kind={b.kind} size={13} />
                   <span className="micro">{b.label}</span>
                 </span>
-                <span className="cell-count">{formatCount(b.count, "mil")}</span>
+                <span className="cell-count">{formatCount(b.count)}</span>
               </div>
             ))}
           </div>
+          <Caption style={{ marginTop: 10 }}>
+            Totais somados dos posts recentes. Não se encaixam direto no ER acima porque o ER usa a
+            mediana de um post, não a soma de todos.
+          </Caption>
         </div>
       )}
     </Section>
@@ -713,7 +724,7 @@ function ScoreDisclosure({
           <div style={{ borderTop: "1px solid var(--line)", paddingTop: 16 }}>
             <div className="micro" style={{ marginBottom: 8 }}>Valor de mídia por post</div>
             <Stat
-              value={`${view.mediaValue.currency}${formatCount(view.mediaValue.low)}–${formatCount(view.mediaValue.high)}`}
+              value={`${view.mediaValue.currency}${formatNumber(view.mediaValue.low)}–${formatNumber(view.mediaValue.high)}`}
               size={30}
             />
             <Caption style={{ marginTop: 8 }}>

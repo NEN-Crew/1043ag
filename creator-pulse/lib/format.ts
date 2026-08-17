@@ -22,18 +22,16 @@ export function formatNumber(n: number | null | undefined): string {
 }
 
 /**
- * Abbreviated counts. `style: "k"` for compact cells (520k), `style: "mil"`
- * for the prose-ish breakdown cells (112 mil). Millions are always "mi".
+ * Counts are always exact.
+ *
+ * These used to be abbreviated — 9.629 seguidores rendered as "10k", 2.303
+ * curtidas as "2 mil". Rounding to the nearest thousand is a 13% error at these
+ * magnitudes, and a creator comparing the screen against their own profile sees
+ * a number that is simply wrong. An exact figure costs three characters and
+ * buys the whole dashboard its credibility back.
  */
-export function formatCount(n: number | null | undefined, style: "k" | "mil" = "k"): string {
-  if (n == null || !Number.isFinite(n)) return DASH;
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `${nf(1, 1).format(n / 1_000_000)} mi`;
-  if (abs >= 1_000) {
-    const thousands = Math.round(n / 1000);
-    return style === "mil" ? `${nf(0, 0).format(thousands)} mil` : `${nf(0, 0).format(thousands)}k`;
-  }
-  return nf(0, 0).format(Math.round(n));
+export function formatCount(n: number | null | undefined): string {
+  return formatNumber(n);
 }
 
 /**

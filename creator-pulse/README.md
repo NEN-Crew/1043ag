@@ -109,7 +109,13 @@ Deliberate choices worth knowing about:
   next brief — and the gap between the two is itself the outlier signal.
 - **Neutral language.** Posts are grouped as *mais* / *menos engajamento*, never
   best/worst. A post that reached more people isn't a worse post, and a creator
-  reading their own report shouldn't be told their work was "the worst".
+  reading their own report shouldn't be told their work was "the worst". Verdicts
+  are descriptive for the same reason: Excelente (85+) · Bom (55+) · Na média
+  (40+) · Abaixo da média — never "Ruim".
+- **Counts are exact, never abbreviated.** 9.629 seguidores, not "10k"; 2.303
+  curtidas, not "2 mil". Rounding to the nearest thousand is a 13% error at these
+  magnitudes, and a creator checking the screen against their own profile finds a
+  number that is simply wrong.
 - **Engagement is graded against the account's size band.** Engagement falls as
   an audience grows, so 2% means something very different at 5k and at 5M.
 - **Saves and shares are the point.** A send is worth roughly 3–5 likes to the
