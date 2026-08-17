@@ -260,21 +260,21 @@ export default function Chart({
             <div
               key={i}
               style={{
-                display: "flex", alignItems: "center", gap: 8, marginTop: 8,
-                paddingTop: 8, borderTop: "1px solid rgba(229,229,229,0.22)", maxWidth: 230,
+                display: "flex", alignItems: "center", gap: 11, marginTop: 10,
+                paddingTop: 10, borderTop: "1px solid rgba(229,229,229,0.22)", maxWidth: 300,
               }}
             >
               {k.thumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={k.thumbnailUrl} alt="" width={30} height={30} style={{ objectFit: "cover", flex: "none" }} />
+                <img src={k.thumbnailUrl} alt="" width={64} height={64} style={{ objectFit: "cover", flex: "none" }} />
               ) : (
-                <span style={{ width: 30, height: 30, background: "rgba(229,229,229,0.18)", flex: "none" }} />
+                <span style={{ width: 64, height: 64, background: "rgba(229,229,229,0.18)", flex: "none" }} />
               )}
               <span
                 style={{
-                  fontSize: 10.5, lineHeight: 1.35, color: "rgba(229,229,229,0.82)",
+                  fontSize: 11.5, lineHeight: 1.4, color: "rgba(229,229,229,0.82)",
                   overflow: "hidden", display: "-webkit-box",
-                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical", whiteSpace: "normal",
+                  WebkitLineClamp: 3, WebkitBoxOrient: "vertical", whiteSpace: "normal",
                 }}
               >
                 {k.caption || "publicado nesse dia"}
