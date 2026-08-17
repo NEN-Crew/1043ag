@@ -26,6 +26,7 @@ import {
   FormatIcon,
   PlatformIcon,
   Refresh,
+  Send,
   Users,
 } from "./Icons";
 
@@ -383,13 +384,13 @@ function Reach({ view }: { view: PlatformView }) {
 /* ─────────────────────── 03 · conteúdo ─────────────────────── */
 
 function Content({ view }: { view: PlatformView }) {
-  const all = useMemo(() => [...view.content.top, ...view.content.worst], [view]);
+  const all = useMemo(() => [...view.content.higher, ...view.content.lower], [view]);
   const publi = all.filter(isPaid).length;
   const organic = all.length - publi;
 
   if (!all.length) {
     return (
-      <Section index={3} caption="o que pegou e o que não pegou" title="conteúdo">
+      <Section index={3} caption="posts recentes, por engajamento" title="conteúdo">
         <Caption>Nenhum post recente com métricas ainda.</Caption>
       </Section>
     );
@@ -398,7 +399,7 @@ function Content({ view }: { view: PlatformView }) {
   return (
     <Section
       index={3}
-      caption="o que pegou e o que não pegou"
+      caption="posts recentes, por engajamento"
       title="conteúdo"
       headRight={
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
@@ -417,12 +418,29 @@ function Content({ view }: { view: PlatformView }) {
         </div>
       }
     >
-      <PostGroup label="Melhores posts · por engajamento" posts={view.content.top} platform={view.platform} />
-      {view.content.worst.length > 0 && (
+      <PostGroup
+        label="Mais engajamento"
+        posts={view.content.higher}
+        platform={view.platform}
+      />
+      {view.content.lower.length > 0 && (
         <div style={{ marginTop: 26 }}>
-          <PostGroup label="Piores posts · por engajamento" posts={view.content.worst} platform={view.platform} worst />
+          <PostGroup
+            label="Menos engajamento"
+            posts={view.content.lower}
+            platform={view.platform}
+            lower
+          />
         </div>
       )}
+      <Caption style={{ marginTop: 18 }}>
+        ER de cada post ={" "}
+        {view.platform === "instagram"
+          ? "(curtidas + comentários + salvos + enviados)"
+          : "(curtidas + comentários + compartilhamentos)"}{" "}
+        ÷ seguidores — a mesma conta do número grande lá em cima. Os números na barra de cada post
+        são exatamente o que entra nela, então a ordem nunca contradiz o que está à vista.
+      </Caption>
     </Section>
   );
 }
@@ -431,12 +449,12 @@ function PostGroup({
   label,
   posts,
   platform,
-  worst,
+  lower,
 }: {
   label: string;
   posts: Post[];
   platform: "instagram" | "tiktok";
-  worst?: boolean;
+  lower?: boolean;
 }) {
   return (
     <div>
@@ -445,14 +463,14 @@ function PostGroup({
       </div>
       <div className="post-grid">
         {posts.map((p) => (
-          <PostTile key={p.id} post={p} platform={platform} worst={worst} />
+          <PostTile key={p.id} post={p} platform={platform} lower={lower} />
         ))}
       </div>
     </div>
   );
 }
 
-function PostTile({ post, platform, worst }: { post: Post; platform: "instagram" | "tiktok"; worst?: boolean }) {
+function PostTile({ post, platform, lower }: { post: Post; platform: "instagram" | "tiktok"; lower?: boolean }) {
   const paid = isPaid(post);
   const Wrapper = post.permalink ? "a" : "div";
 
@@ -466,7 +484,7 @@ function PostTile({ post, platform, worst }: { post: Post; platform: "instagram"
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.thumbnailUrl} alt="" />
         ) : (
-          <div className={`post-hatch${worst ? " worst" : ""}`}>
+          <div className={`post-hatch${lower ? " lower" : ""}`}>
             <FormatIcon format={post.format} size={26} />
           </div>
         )}
@@ -475,10 +493,16 @@ function PostTile({ post, platform, worst }: { post: Post; platform: "instagram"
           {post.formatLabel}
         </span>
         {paid && <span className="post-publi">Publi</span>}
-        {post.er != null && <span className={`post-er${worst ? " worst" : ""}`}>ER {formatRate(post.er)}%</span>}
+        {post.er != null && (
+          <span className={`post-er${lower ? " lower" : ""}`}>ER {formatRate(post.er, 2)}%</span>
+        )}
+        {/* Every input to the badge, so the number is always checkable. */}
         <span className="post-stats">
           <span className="post-stat"><Heart size={12} />{formatCount(post.likes)}</span>
           <span className="post-stat"><Comment size={12} />{formatCount(post.comments)}</span>
+          {post.sends != null && (
+            <span className="post-stat"><Send size={12} />{formatCount(post.sends)}</span>
+          )}
         </span>
       </div>
       {post.caption && <p className="post-cap">{post.caption}</p>}

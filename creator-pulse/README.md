@@ -67,7 +67,7 @@ with its own number so nothing is a black box:
 
 | Component | Weight | What it measures | Normal |
 | --- | --- | --- | --- |
-| **Engagement** | 40% | Reactions on a typical post ÷ followers | the account's size band (nano 3–5% → mega 0.5–1%) |
+| **Engagement** | 40% | Interactions on a typical post ÷ followers | the account's size band (nano 3–5% → mega 0.5–1%) |
 | **Reach** | 25% | Views on a typical post ÷ followers | 10% floor, ~30% typical |
 | **Impact** | 20% | Share of reactions that were comments, saves or shares rather than likes | 8% normal, 20%+ strong (IG) |
 | **Consistency** | 15% | Posts per week across the observed window | 3/wk strong |
@@ -78,10 +78,38 @@ Every component uses the same scale, so a 70 always means the same thing:
 - **80** — the top of what's normal
 - **100** — double the top
 
+### The engagement rate, exactly
+
+```
+interações do post = curtidas + comentários + salvos + enviados   (TikTok: sem salvos)
+ER                 = mediana(interações) ÷ seguidores × 100
+```
+
+The same formula runs at both levels — the headline rate and every post badge.
+Three rules make it hold up to scrutiny:
+
+- **One denominator on the screen: followers.** Dividing a post by *reach* is
+  defensible and arguably more precise, but it produced a screen that contradicted
+  itself: a post with 116 likes ranked above one with 230, because the second had
+  reached 5× more people. Followers are constant across a creator's posts, so
+  ER-by-followers orders posts identically to their raw interaction counts — the
+  badge can never disagree with the numbers printed beside it. Reach-based
+  engagement still appears, but under its own name (*sobre o alcance*), never as "ER".
+- **The parts are summed, not Instagram's `total_interactions`.** IG's aggregate
+  runs 3–13% above the sum of the components it reports, which would leave a badge
+  nobody could reconcile with the counts on the tile. TikTok has no equivalent
+  aggregate either, so summing keeps one formula across both platforms. A number
+  you can add up yourself beats a marginally more official one.
+- **Every input is on the tile.** Likes, comments and sends are printed on each
+  post, and they are exactly what enters the badge.
+
 Deliberate choices worth knowing about:
 
 - **Medians, not averages.** One viral post shouldn't reset expectations for the
-  next brief.
+  next brief — and the gap between the two is itself the outlier signal.
+- **Neutral language.** Posts are grouped as *mais* / *menos engajamento*, never
+  best/worst. A post that reached more people isn't a worse post, and a creator
+  reading their own report shouldn't be told their work was "the worst".
 - **Engagement is graded against the account's size band.** Engagement falls as
   an audience grows, so 2% means something very different at 5k and at 5M.
 - **Saves and shares are the point.** A send is worth roughly 3–5 likes to the

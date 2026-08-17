@@ -54,12 +54,22 @@ export type Post = {
   format: PostFormat;
   formatLabel: string;
   caption: string;
-  /** Engagement rate for this post, as a percentage number. */
+  /**
+   * Interactions ÷ followers, the same formula as the headline rate. Followers
+   * are constant across a creator's posts, so this orders posts identically to
+   * their raw interaction counts — the badge can never contradict the likes and
+   * comments printed beside it. Dividing by reach instead ranks a 116-like post
+   * above a 230-like one, which reads as broken however defensible it is.
+   */
   er: number | null;
+  /** Interactions ÷ reach: how hard it landed with the people who saw it. */
+  reachRate: number | null;
   likes: number | null;
   comments: number | null;
   saves: number | null;
   shares: number | null;
+  /** saves + shares, the two that carry a post beyond the existing audience. */
+  sends: number | null;
   views: number | null;
   reach: number | null;
   thumbnailUrl: string | null;
@@ -129,7 +139,9 @@ export type PlatformView = {
   postsPerWeek: number | null;
   window: { days: number; posts: number } | null;
 
-  content: { top: Post[]; worst: Post[] };
+  /** Ordered by engagement. Neutral names on purpose — a post that reached more
+   *  people is not a "worse" post, and a creator shouldn't read it that way. */
+  content: { higher: Post[]; lower: Post[] };
   /** Median of the recent posts. Medians, so one viral post doesn't set the bar. */
   typical: { views: number | null; reach: number | null; likes: number | null; comments: number | null };
   /** (saves + shares) ÷ reach. Instagram only — the distribution signal. */
@@ -174,7 +186,7 @@ const IG_FORMATS: Record<string, { key: PostFormat; label: string }> = {
 
 type Internal = Post & { interactions: number | null; sends: number | null };
 
-function toPosts(platform: Platform, stats: any): Internal[] {
+function toPosts(platform: Platform, stats: any, followers: number | null): Internal[] {
   const raw = (platform === "instagram" ? stats?.posts : stats?.videos) ?? [];
   const isIg = platform === "instagram";
 
@@ -186,11 +198,15 @@ function toPosts(platform: Platform, stats: any): Internal[] {
     const reach = isIg ? p.reach ?? null : null;
     const views = p.views ?? null;
 
-    // Instagram's total_interactions already folds in saves and shares; fall
-    // back to adding up the parts when it's missing.
-    const interactions = isIg
-      ? p.totalInteractions ?? sum([likes, comments, saves, shares])
-      : sum([likes, comments, shares]);
+    /**
+     * Always the sum of the parts we can show, never Instagram's own
+     * total_interactions. Two reasons: TikTok has no equivalent aggregate, so
+     * using IG's would mean the two platforms ran different formulas; and IG's
+     * total runs 3–13% above the itemised sum, which would leave a badge the
+     * reader cannot reconcile with the counts printed beside it. A number you
+     * can add up yourself is worth more than a marginally more official one.
+     */
+    const interactions = sum([likes, comments, saves, shares]);
 
     const fmt = isIg
       ? IG_FORMATS[p.type] ?? { key: "photo" as PostFormat, label: "Post" }
@@ -201,7 +217,8 @@ function toPosts(platform: Platform, stats: any): Internal[] {
       format: fmt.key,
       formatLabel: fmt.label,
       caption: ((isIg ? p.caption : p.title) || "").replace(/\s+/g, " ").trim(),
-      er: ratio(interactions, reach ?? views),
+      er: ratio(interactions, followers),
+      reachRate: ratio(interactions, reach ?? views),
       likes,
       comments,
       saves,
@@ -254,7 +271,7 @@ export function analyze(
   const isIg = platform === "instagram";
   const followers: number | null = stats.followers ?? null;
   const tier = tierFor(followers);
-  const posts = toPosts(platform, stats);
+  const posts = toPosts(platform, stats, followers);
   const { cadence, window } = cadenceOf(posts);
 
   const typical = {
@@ -266,7 +283,7 @@ export function analyze(
   const typicalInteractions = median(posts.map((p) => p.interactions));
 
   const engagementRate = ratio(typicalInteractions, followers);
-  const byReach = median(posts.map((p) => p.er));
+  const byReach = median(posts.map((p) => p.reachRate));
   const viewRate = ratio(typical.views, followers);
   const sendsPerReach = isIg ? median(posts.map((p) => ratio(p.sends, p.reach))) : null;
   const commentsRate = ratio(typical.comments, followers);
@@ -408,7 +425,8 @@ export function analyze(
     postsPerWeek: cadence,
     window,
 
-    content: { top: ranked.slice(0, 4), worst: ranked.slice(-3).reverse() },
+    // Both groups read the same direction, highest to lowest.
+    content: { higher: ranked.slice(0, 4), lower: ranked.slice(-3) },
     typical,
     sendsPerReach,
 

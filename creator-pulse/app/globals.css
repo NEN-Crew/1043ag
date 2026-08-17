@@ -314,7 +314,7 @@ a.post:hover .post-media { border-color: var(--ink); }
   position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-300);
   background: repeating-linear-gradient(135deg, #ececec 0 9px, #e2e2e2 9px 18px);
 }
-.post-hatch.worst { background: repeating-linear-gradient(135deg, #ededed 0 9px, #e5e5e5 9px 18px); }
+.post-hatch.lower { background: repeating-linear-gradient(135deg, #ededed 0 9px, #e5e5e5 9px 18px); }
 .post-chip {
   position: absolute; top: 0; left: 0; z-index: 2;
   display: inline-flex; align-items: center; gap: 6px;
@@ -333,7 +333,7 @@ a.post:hover .post-media { border-color: var(--ink); }
   padding: 5px 9px; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap;
   background: var(--cobalt);
 }
-.post-er.worst { background: var(--accent); }
+.post-er.lower { background: var(--ink); }
 .post-stats {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
   display: flex; gap: 14px; background: var(--ink); color: #e5e5e5; padding: 7px 8px;

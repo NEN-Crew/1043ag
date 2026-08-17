@@ -26,11 +26,10 @@ function median(values: (number | null | undefined)[]): number | null {
 function erAt(row: Row, platform: "instagram" | "tiktok"): number | null {
   const items = (platform === "instagram" ? row.post_metrics : row.video_metrics) ?? [];
   if (!items.length || !row.followers) return null;
-  const interactions = items.map((m: any) =>
-    platform === "instagram"
-      ? m.totalInteractions ?? add([m.likes, m.comments, m.saves, m.shares])
-      : add([m.likes, m.comments, m.shares])
-  );
+  // Same formula as the live view — the sum of the parts, never Instagram's
+  // total_interactions. If these diverged, the chart would step on the day the
+  // formula changed rather than on the day the account did.
+  const interactions = items.map((m: any) => add([m.likes, m.comments, m.saves, m.shares]));
   const typical = median(interactions);
   return typical == null ? null : (typical / row.followers) * 100;
 }
