@@ -547,8 +547,7 @@ function Reach({ view }: { view: PlatformView }) {
 
 function Content({ view }: { view: PlatformView }) {
   const c = view.content;
-  const publi = c.paid.length;
-  const organic = c.all.length - publi;
+  const [filter, setFilter] = useState<"all" | "organic" | "paid">("all");
 
   if (!c.all.length) {
     return (
@@ -558,114 +557,83 @@ function Content({ view }: { view: PlatformView }) {
     );
   }
 
+  const shown = filter === "paid" ? c.paid : filter === "organic" ? c.organic : c.all;
+  const flagged = c.all.filter((p) => p.standout === "viral" || p.standout === "high").length;
+
+  const FILTERS = [
+    { key: "all" as const, label: "Todos", n: c.all.length },
+    { key: "organic" as const, label: "Orgânicos", n: c.organic.length },
+    { key: "paid" as const, label: "Publis", n: c.paid.length },
+  ];
+
   return (
     <Section
       index={3}
       caption="posts do período"
       title="conteúdo"
       headRight={
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--ink-400)" }}>
-            <span style={{ width: 7, height: 7, background: "var(--ink-300)" }} />
-            {organic} orgânico{organic === 1 ? "" : "s"}
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--accent)" }}>
-            <span style={{ width: 7, height: 7, background: "var(--accent)" }} />
-            {publi} publi{publi === 1 ? "" : "s"}
-          </span>
+        <div className="segbox" role="tablist" aria-label="Filtrar posts">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              role="tab"
+              aria-selected={filter === f.key}
+              className="seg"
+              onClick={() => setFilter(f.key)}
+              disabled={f.n === 0}
+              style={f.n === 0 ? { opacity: 0.4, cursor: "default" } : undefined}
+            >
+              {f.label} · {f.n}
+            </button>
+          ))}
         </div>
       }
     >
-      {c.splittable ? (
-        <>
-          {c.higher.length > 0 && (
-            <PostGroup
-              label="Acima da média deste perfil"
-              posts={c.higher}
-              platform={view.platform}
-            />
-          )}
-          {c.lower.length > 0 && (
-            <div style={{ marginTop: c.higher.length ? 26 : 0 }}>
-              <PostGroup
-                label="Bem abaixo da média deste perfil"
-                posts={c.lower}
-                platform={view.platform}
-                lower
-              />
-            </div>
-          )}
-          {c.higher.length === 0 && c.lower.length === 0 && (
-            <PostGroup label="Todos os posts do período" posts={c.all} platform={view.platform} />
-          )}
-          <Caption style={{ marginTop: 18 }}>
-            Comparado com a mediana do próprio perfil no período, usando o desvio absoluto mediano
-            como medida de dispersão. Um post entra em <b>acima</b> a partir de 1 desvio acima da
-            mediana, e em <b>bem abaixo</b> só a partir de 2 desvios abaixo — de propósito é mais
-            fácil se destacar para cima do que para baixo. Posts dentro da faixa normal não são
-            rotulados.
-          </Caption>
-        </>
+      {shown.length === 0 ? (
+        <Caption>Nenhum post desse tipo no período.</Caption>
       ) : (
-        <>
-          <PostGroup label="Todos os posts do período" posts={c.all} platform={view.platform} />
-          <Caption style={{ marginTop: 18 }}>
-            {c.all.length} {c.all.length === 1 ? "post" : "posts"} no período — poucos para dizer que
-            algum é destaque ou exceção. Com essa quantidade, a mediana e a dispersão oscilam demais
-            e qualquer rótulo seria ruído. Amplie o período para uma leitura comparativa.
-          </Caption>
-        </>
+        <div className="post-grid">
+          {shown.map((p) => (
+            <PostTile key={p.id} post={p} platform={view.platform} />
+          ))}
+        </div>
       )}
 
-      {c.paid.length > 0 && (
-        <div style={{ marginTop: 34, borderTop: "1px solid var(--line)", paddingTop: 24 }}>
-          <div style={{ marginBottom: 12 }}>
-            <Eyebrow>Publis do período · {c.paid.length}</Eyebrow>
-          </div>
-          <div className="post-grid">
-            {c.paid.map((p) => (
-              <PostTile key={p.id} post={p} platform={view.platform} />
-            ))}
-          </div>
-          <Caption style={{ marginTop: 14 }}>
-            Todas as publicações pagas do período, sem ranqueamento. Detectadas pela descrição:
-            uma hashtag <b>#publi</b>, <b>#publicidade</b>, <b>#ad</b>, <b>#ads</b>, <b>#paid</b>,{" "}
-            <b>#parceria</b>, <b>#publipost</b> ou <b>#recebido</b>. A hashtag é obrigatória — a
-            palavra solta no meio do texto não conta, e <b>#adidas</b> não é confundido com{" "}
-            <b>#ad</b>. Se o creator esquecer a hashtag, o post aparece como orgânico.
-          </Caption>
-        </div>
+      <Caption style={{ marginTop: 18 }}>
+        Ordenados do maior para o menor engajamento.{" "}
+        {c.confidence === "none" ? (
+          <>
+            Com {c.all.length} {c.all.length === 1 ? "post" : "posts"} não dá para estabelecer uma
+            média do perfil, então nenhum é marcado como destaque. Amplie o período.
+          </>
+        ) : c.confidence === "weak" ? (
+          <>
+            São {c.all.length} posts — poucos para uma leitura fina, então só marcamos o que se
+            destaca de forma evidente {flagged > 0 ? `(${flagged} aqui)` : "(nenhum aqui)"}. Amplie
+            o período para uma comparação mais firme.
+          </>
+        ) : (
+          <>
+            Marcamos <b>viral</b> quando o post foi entregue a mais de 10× a base de seguidores ou
+            desviou muito da mediana, <b>acima</b> a partir de 1 desvio acima dela e <b>abaixo</b>{" "}
+            só a partir de 2 desvios abaixo — é mais fácil se destacar para cima do que para baixo.
+          </>
+        )}
+      </Caption>
+
+      {c.paid.length > 0 && filter !== "organic" && (
+        <Caption style={{ marginTop: 10 }}>
+          Publi é detectada pela descrição: a hashtag <b>#publi</b>, <b>#publicidade</b>,{" "}
+          <b>#ad</b>, <b>#ads</b>, <b>#paid</b>, <b>#parceria</b>, <b>#publipost</b> ou{" "}
+          <b>#recebido</b>. O <b>#</b> é obrigatório, e <b>#adidas</b> não conta como <b>#ad</b>. Se
+          o creator esquecer a hashtag, o post aparece como orgânico.
+        </Caption>
       )}
     </Section>
   );
 }
 
-function PostGroup({
-  label,
-  posts,
-  platform,
-  lower,
-}: {
-  label: string;
-  posts: Post[];
-  platform: "instagram" | "tiktok";
-  lower?: boolean;
-}) {
-  return (
-    <div>
-      <div style={{ marginBottom: 12 }}>
-        <span className="micro">{label}</span>
-      </div>
-      <div className="post-grid">
-        {posts.map((p) => (
-          <PostTile key={p.id} post={p} platform={platform} lower={lower} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PostTile({ post, platform, lower }: { post: Post; platform: "instagram" | "tiktok"; lower?: boolean }) {
+function PostTile({ post, platform }: { post: Post; platform: "instagram" | "tiktok" }) {
   const paid = isPaid(post);
   const Wrapper = post.permalink ? "a" : "div";
 
@@ -679,7 +647,7 @@ function PostTile({ post, platform, lower }: { post: Post; platform: "instagram"
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.thumbnailUrl} alt="" />
         ) : (
-          <div className={`post-hatch${lower ? " lower" : ""}`}>
+          <div className={`post-hatch${post.standout === "low" ? " lower" : ""}`}>
             <FormatIcon format={post.format} size={26} />
           </div>
         )}
@@ -688,8 +656,19 @@ function PostTile({ post, platform, lower }: { post: Post; platform: "instagram"
           {post.formatLabel}
         </span>
         {paid && <span className="post-publi">Publi</span>}
+        {post.standout && (
+          <span className={`post-flag ${post.standout}`} style={{ top: paid ? 56 : 30 }}>
+            {post.standout === "viral"
+              ? post.reachMultiple && post.reachMultiple >= 10
+                ? `Viral · ${Math.round(post.reachMultiple)}× a base`
+                : "Viral"
+              : post.standout === "high"
+              ? "Acima da média"
+              : "Abaixo da média"}
+          </span>
+        )}
         {post.er != null && (
-          <span className={`post-er${lower ? " lower" : ""}`}>ER {formatRate(post.er, 2)}%</span>
+          <span className={`post-er${post.standout === "low" ? " lower" : ""}`}>ER {formatRate(post.er, 2)}%</span>
         )}
         {/* Every input to the badge, so the number is always checkable. */}
         <span className="post-stats">

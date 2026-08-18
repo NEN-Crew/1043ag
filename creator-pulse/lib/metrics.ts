@@ -72,6 +72,13 @@ export type Post = {
   er: number | null;
   /** Interactions ÷ reach: how hard it landed with the people who saw it. */
   reachRate: number | null;
+  /**
+   * How many times the follower base this post was delivered to. 1 means it
+   * reached about as many people as the account has followers; 46 is what a
+   * video on the For You page did here. It's the plainest evidence that a post
+   * escaped its own audience, which is what "viral" actually means.
+   */
+  reachMultiple: number | null;
   likes: number | null;
   comments: number | null;
   saves: number | null;
@@ -83,7 +90,17 @@ export type Post = {
   thumbnailUrl: string | null;
   permalink: string | null;
   postedAt: string | null;
+  /**
+   * How far this post sits from the account's own median. Carried on the post
+   * rather than splitting the list into groups: one ordered list can't put the
+   * same post in two places, and it stays sorted highest-to-lowest whatever the
+   * labels say.
+   */
+  standout: Standout;
 };
+
+/** null = inside the account's normal range, and deliberately unlabelled. */
+export type Standout = "viral" | "high" | "low" | null;
 
 export type EngagementKind = "likes" | "comments" | "saves" | "shares";
 
@@ -168,7 +185,14 @@ export type PlatformView = {
    * about nothing. `all` is every post in the window, ordered; `higher` and
    * `lower` are empty when the sample is too small to call anything an outlier.
    */
-  content: { all: Post[]; higher: Post[]; lower: Post[]; paid: Post[]; splittable: boolean };
+  content: {
+    /** Every post in the window, always ordered by engagement, highest first. */
+    all: Post[];
+    paid: Post[];
+    organic: Post[];
+    /** How much the sample supports calling anything an outlier. */
+    confidence: "none" | "weak" | "ok";
+  };
   /** Median of the recent posts. Medians, so one viral post doesn't set the bar. */
   typical: { views: number | null; reach: number | null; likes: number | null; comments: number | null };
   /** (saves + shares) ÷ reach. Instagram only — the distribution signal. */
@@ -273,6 +297,8 @@ function toPosts(platform: Platform, stats: any, followers: number | null): Inte
       // actually delivered, and every TikTok analytics tool uses them.
       er: isIg ? ratio(interactions, followers) : ratio(interactions, views),
       reachRate: ratio(interactions, reach ?? views),
+      reachMultiple: followers && (views ?? reach) ? (views ?? reach)! / followers : null,
+      standout: null,
       likes,
       comments,
       saves,
@@ -336,11 +362,11 @@ const MIN_POSTS_TO_SPLIT = 6;
  */
 function classify(posts: Internal[]): PlatformView["content"] {
   const rated = posts.filter((p) => p.er != null).sort((a, b) => b.er! - a.er!);
-  const paid = rated.filter(isPaid);
-  const base = { all: rated, paid };
+  const empty = { all: rated, paid: [] as Post[], organic: [] as Post[], confidence: "none" as const };
 
-  if (rated.length < MIN_POSTS_TO_SPLIT) {
-    return { ...base, higher: [], lower: [], splittable: false };
+  // Two or three posts cannot establish a median to deviate from.
+  if (rated.length < 4) {
+    return { ...empty, paid: rated.filter(isPaid), organic: rated.filter((p) => !isPaid(p)) };
   }
 
   const ers = rated.map((p) => p.er!);
@@ -353,25 +379,39 @@ function classify(posts: Internal[]): PlatformView["content"] {
    * that took off stretch the upper tail while the lower one stays compressed.
    * A single symmetric MAD absorbs that skew, and `median − 2·MAD` then lands
    * below zero — on this roster it did, so nothing could ever qualify as weak.
-   * One-sided deviations keep each threshold on the scale of the side it judges.
    */
   const sideSpread = (side: number[]) => {
     const d = median(side.map((e) => Math.abs(e - m)));
-    // Falls back proportionally when a side is empty or every post is alike.
     return d && d > 0 ? d : m * 0.15;
   };
   const upper = sideSpread(ers.filter((e) => e > m));
   const lower = sideSpread(ers.filter((e) => e < m));
 
-  const higher = rated.filter((p) => p.er! >= m + upper);
-  const lowest = rated.filter((p) => p.er! <= m - 2 * lower);
+  // Under six posts the median and the spread both wobble, so the bar to be
+  // called out doubles. Fewer labels, but the ones that appear are real.
+  const weak = rated.length < MIN_POSTS_TO_SPLIT;
+  const k = weak ? 2 : 1;
+
+  for (const p of rated) {
+    const e = p.er!;
+    // Viral is a different claim from "above average": the post escaped the
+    // account's own audience. Either an extreme deviation, or delivery several
+    // times the follower base — the thing that actually happened.
+    // Ten times the follower base. Five was too generous for TikTok, where the
+    // For You page routinely delivers well past the audience — it flagged 18%
+    // of posts, and a label that common stops meaning anything.
+    const escaped = p.reachMultiple != null && p.reachMultiple >= 10;
+    if (e >= m + 3 * upper || escaped) p.standout = "viral";
+    else if (e >= m + k * upper) p.standout = "high";
+    else if (e <= m - 2 * k * lower) p.standout = "low";
+    else p.standout = null;
+  }
 
   return {
-    ...base,
-    // Disjoint by construction: m + spread is always above m − 2·spread.
-    higher: higher.slice(0, 4),
-    lower: lowest.slice(-3),
-    splittable: true,
+    all: rated,
+    paid: rated.filter(isPaid),
+    organic: rated.filter((p) => !isPaid(p)),
+    confidence: weak ? "weak" : "ok",
   };
 }
 
