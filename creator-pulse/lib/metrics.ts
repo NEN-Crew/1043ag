@@ -225,7 +225,7 @@ export function isPaid(post: { caption: string }): boolean {
   return PUBLI_RE.test(post.caption ?? "");
 }
 
-const DASH = "—";
+const DASH = "-";
 const pct = (n: number | null, d = 1) => (n == null ? DASH : `${n.toFixed(d)}%`);
 const int = (n: number | null) => (n == null ? DASH : Math.round(n).toLocaleString("pt-BR"));
 
@@ -397,10 +397,10 @@ function classify(posts: Internal[]): PlatformView["content"] {
     // Viral is a different claim from "above average": the post escaped the
     // account's own audience. Either an extreme deviation, or delivery several
     // times the follower base — the thing that actually happened.
-    // Ten times the follower base. Five was too generous for TikTok, where the
-    // For You page routinely delivers well past the audience — it flagged 18%
-    // of posts, and a label that common stops meaning anything.
-    const escaped = p.reachMultiple != null && p.reachMultiple >= 10;
+    // Five times the follower base. Generous on purpose: the label is there to
+    // credit a creator, so the bar starts where the post clearly went past its
+    // own audience rather than where it becomes rare.
+    const escaped = p.reachMultiple != null && p.reachMultiple >= 5;
     if (e >= m + 3 * upper || escaped) p.standout = "viral";
     else if (e >= m + k * upper) p.standout = "high";
     else if (e <= m - 2 * k * lower) p.standout = "low";
@@ -485,8 +485,8 @@ export function analyze(
       weight: 0.4,
       score: scoreAt(engagementRate, isIg ? engagementAnchors(tier) : TIKTOK_ER_ANCHORS),
       display: pct(engagementRate, 2),
-      benchmark: isIg ? `${tier.name}: ${tier.band[0]}–${tier.band[1]}%` : "4–8% sobre as views",
-      note: `Reações em um post típico sobre os ${int(followers)} seguidores. Avaliado contra o normal para uma conta ${tier.name.toLowerCase()}, porque o engajamento cai conforme a audiência cresce.`,
+      benchmark: isIg ? `${tier.band[0]} a ${tier.band[1]}%` : "4 a 8% sobre as views",
+      note: `Reações de um post típico sobre ${int(followers)} seguidores. Avaliado contra a faixa esperada para esse tamanho de perfil.`,
     },
     {
       key: "reach",
@@ -495,7 +495,7 @@ export function analyze(
       score: scoreAt(viewRate, VIEW_RATE_ANCHORS),
       display: pct(viewRate),
       benchmark: "10% piso, 30% típico",
-      note: `Um post típico é visto ${int(typical.views)} vezes. É a checagem do número de seguidores: uma audiência grande que não assiste vale menos que uma pequena que assiste.`,
+      note: `Um post típico é visto ${int(typical.views)} vezes, medido sobre o total de seguidores.`,
     },
     {
       key: "impact",
@@ -505,8 +505,8 @@ export function analyze(
       display: pct(effortShare),
       benchmark: isIg ? "8% normal, 20%+ forte" : "5% normal, 12%+ forte",
       note: isIg
-        ? "Fatia das reações que foram comentários, salvamentos ou envios em vez de curtidas. Um envio vale cerca de 3 a 5 curtidas para o algoritmo, então é isso que leva o post além da audiência atual."
-        : "Fatia das reações que foram comentários ou compartilhamentos em vez de curtidas. Curtidas baratas inflam uma taxa; estas não.",
+        ? "Fatia das reações que foram comentários, salvamentos ou envios, em vez de curtidas."
+        : "Fatia das reações que foram comentários ou compartilhamentos, em vez de curtidas.",
     },
     {
       key: "consistency",
@@ -515,7 +515,7 @@ export function analyze(
       score: scoreAt(cadence, CADENCE_ANCHORS),
       display: cadence == null ? DASH : `${cadence.toFixed(1)}/sem`,
       benchmark: "3/sem forte",
-      note: `${window.posts} posts nos últimos ${window.days} dias. Cadência é o que torna a entrega previsível quando uma campanha é fechada.`,
+      note: `${window.posts} posts em ${window.days} dias.`,
     },
   ];
 
@@ -567,9 +567,9 @@ export function analyze(
   const withReach = posts.filter((p) => p.reach != null).length;
   const caveat = isIg
     ? posts.length > 0 && withReach < posts.length
-      ? `Alcance e salvamentos vieram para ${withReach} de ${posts.length} posts — o Instagram não reporta esses números para todo tipo de mídia.`
+      ? `Alcance e salvamentos disponíveis em ${withReach} de ${posts.length} posts. O Instagram não reporta esses dados para todo tipo de mídia.`
       : null
-    : "A API do TikTok não retorna alcance nem dados demográficos da audiência, então eles não aparecem aqui.";
+    : "A API do TikTok não retorna alcance nem dados demográficos.";
 
   return {
     platform,
@@ -590,8 +590,8 @@ export function analyze(
       // The tier name ("Nano") reads as a label on the person. The band says the
       // same thing without ranking them.
       verdictNote: isIg
-        ? `${tier.band[0]}–${tier.band[1]}% é o esperado para um perfil desse tamanho`
-        : "4–8% sobre as views é o esperado no TikTok",
+        ? `${tier.band[0]} a ${tier.band[1]}% é o esperado para esse tamanho de perfil`
+        : "4 a 8% sobre as views é o esperado no TikTok",
       commentsRate,
       likesPerComment,
       breakdown,
@@ -605,7 +605,8 @@ export function analyze(
     content,
     typical,
     sendsPerReach,
-    lifetimeLikes: stats.likes_total ?? null,
+    // bigint arrives as a string from Postgres.
+    lifetimeLikes: stats.likes_total != null ? Number(stats.likes_total) : null,
     published: posts
       .filter((p) => p.postedAt)
       .map((p) => ({
@@ -676,7 +677,7 @@ export function audienceFrom(demographics: any): Audience | null {
   // chart of ages sorted by size is unreadable.
   const age = share(demographics.age)
     .sort((a, b) => a.key.localeCompare(b.key, "pt-BR", { numeric: true }))
-    .map((a) => ({ label: a.key.replace("-", "–"), pct: a.pct }));
+    .map((a) => ({ label: a.key.replace("-", " a "), pct: a.pct }));
 
   const geography = share(demographics.country)
     .sort((a, b) => b.pct - a.pct)

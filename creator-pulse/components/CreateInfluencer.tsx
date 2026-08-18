@@ -52,7 +52,7 @@ export default function CreateInfluencer() {
       {created && (
         <div className="notice" style={{ marginTop: 16, borderColor: "var(--cobalt)", color: "var(--ink)" }}>
           <div className="micro" style={{ marginBottom: 8, color: "var(--cobalt)" }}>Conta criada</div>
-          Envie estes dados ao creator — a senha aparece uma única vez.
+          Envie estes dados ao creator. A senha aparece uma única vez.
           <div style={{ marginTop: 10, display: "grid", gap: 4, fontWeight: 700 }}>
             <span>E-mail: {created.email}</span>
             <span>Senha: {created.password}</span>

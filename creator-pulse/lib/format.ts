@@ -7,18 +7,30 @@
 const nf = (min: number, max: number) =>
   new Intl.NumberFormat("pt-BR", { minimumFractionDigits: min, maximumFractionDigits: max });
 
-const DASH = "—";
+const DASH = "-";
+
+/**
+ * Postgres returns bigint as a string so it can't lose precision, which means
+ * a value straight out of the database fails Number.isFinite and renders as a
+ * dash. Everything numeric goes through here first.
+ */
+function num(n: unknown): number | null {
+  const v = typeof n === "string" ? Number(n) : n;
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
 
 /** A rate, one decimal: 4.2 → "4,2". The % is a separate element (§8.3). */
 export function formatRate(n: number | null | undefined, decimals = 1): string {
-  if (n == null || !Number.isFinite(n)) return DASH;
-  return nf(decimals, decimals).format(n);
+  const v = num(n);
+  if (v == null) return DASH;
+  return nf(decimals, decimals).format(v);
 }
 
 /** Whole numbers with pt-BR thousands separators: 12345 → "12.345". */
 export function formatNumber(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return DASH;
-  return nf(0, 0).format(Math.round(n));
+  const v = num(n);
+  if (v == null) return DASH;
+  return nf(0, 0).format(Math.round(v));
 }
 
 /**
@@ -47,14 +59,16 @@ export function formatDelta(value: number, unit: "pp" | "pct"): string {
 
 /** "62 : 1" — spaces around the colon. */
 export function formatRatio(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return DASH;
-  return `${nf(0, 0).format(Math.round(n))} : 1`;
+  const v = num(n);
+  if (v == null) return DASH;
+  return `${nf(0, 0).format(Math.round(v))} : 1`;
 }
 
 /** "5,2 posts / semana" */
 export function formatCadence(n: number | null | undefined, noun = "posts"): string {
-  if (n == null || !Number.isFinite(n)) return DASH;
-  return `${nf(1, 1).format(n)} ${noun} / semana`;
+  const v = num(n);
+  if (v == null) return DASH;
+  return `${nf(1, 1).format(v)} ${noun} / semana`;
 }
 
 export function formatDate(iso: string | null | undefined): string {

@@ -1,4 +1,4 @@
-export const metadata = { title: "Terms of Service — Pulse" };
+export const metadata = { title: "Terms of Service · Pulse" };
 
 // Contact address shown on the legal pages.
 const CONTACT = "contato@1043.ag";

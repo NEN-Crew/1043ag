@@ -47,8 +47,8 @@ export default async function MePage({
                 {connected.instagram || connected.tiktok ? "Conectar a outra rede" : "Conectar suas redes"}
               </span>
               <Caption style={{ margin: "10px 0 16px", maxWidth: 520 }}>
-                Você será levado à plataforma para autorizar o acesso. Lemos apenas suas estatísticas —
-                nunca publicamos nada.
+                Você será levado à plataforma para autorizar o acesso. Lemos apenas suas
+                estatísticas. Nunca publicamos nada.
               </Caption>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 {!connected.instagram && (

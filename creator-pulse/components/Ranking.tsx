@@ -190,8 +190,8 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
           <Info size={13} />
           <Caption>
             {network === "all"
-              ? `Ranqueado por ${sortLabel} · filtre por rede para comparar contas da mesma plataforma · clique numa linha para abrir o perfil individual.`
-              : `${netLabel} · ranqueado por ${sortLabel} · clique numa linha para abrir o perfil individual.`}
+              ? `Ranqueado por ${sortLabel}. Filtre por rede para comparar contas da mesma plataforma. Clique numa linha para abrir o perfil.`
+              : `${netLabel}. Ranqueado por ${sortLabel}. Clique numa linha para abrir o perfil.`}
           </Caption>
         </div>
 
@@ -209,7 +209,7 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
               ))}
             </div>
             <Caption style={{ marginTop: 12 }}>
-              Envie o login para essas pessoas conectarem Instagram ou TikTok — sem conexão não há números.
+              Envie o login para essas pessoas conectarem Instagram ou TikTok.
             </Caption>
           </div>
         )}
@@ -239,7 +239,7 @@ function Freshness({ at }: { at: string | null }) {
       {stale ? <AlertTriangle size={13} /> : <Clock size={13} />}
       <span style={{ fontSize: 12.5, lineHeight: 1.5 }}>
         {stale
-          ? `Dados ${formatFreshness(at)} — a atualização diária automática pode ter parado. Verifique CRON_SECRET nas variáveis de ambiente da Vercel.`
+          ? `Dados ${formatFreshness(at)}. A atualização diária pode ter parado. Verifique CRON_SECRET na Vercel.`
           : `Dados ${formatFreshness(at)} · atualização automática diária`}
       </span>
     </div>

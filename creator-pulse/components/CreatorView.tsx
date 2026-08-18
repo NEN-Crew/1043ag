@@ -184,7 +184,7 @@ function WindowPicker({ windowDays }: { windowDays: number }) {
           </button>
         ))}
       </div>
-      <Caption>Todos os números abaixo são desse período.</Caption>
+      <Caption>Período aplicado a todos os números abaixo.</Caption>
     </div>
   );
 }
@@ -197,15 +197,11 @@ function EmptyWindow({ view }: { view: PlatformView }) {
         Nenhum post no período
       </div>
       <span style={{ color: "var(--ink)", fontSize: 13 }}>
-        {view.label} não teve publicações entre {rangeLabel(view.window.from, view.window.to)}.{" "}
+        Sem posts entre {rangeLabel(view.window.from, view.window.to)}.{" "}
         {view.window.lastPostAt
-          ? `O último post foi em ${new Date(view.window.lastPostAt).toLocaleDateString("pt-BR", {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })}.`
-          : "Não há posts registrados."}{" "}
-        Amplie o período acima para ver os números desse conteúdo.
+          ? `Último post: ${new Date(view.window.lastPostAt).toLocaleDateString("pt-BR")}.`
+          : "Nenhum post registrado."}{" "}
+        Amplie o período para ver dados.
       </span>
     </div>
   );
@@ -420,16 +416,14 @@ function Engagement({ view }: { view: PlatformView }) {
             ))}
           </div>
           <Caption style={{ marginTop: 10 }}>
-            Somas dos {view.window.posts} posts do período. Não se encaixam direto no ER acima
-            porque o ER usa a mediana de um post, não a soma de todos.
+            Soma dos {view.window.posts} posts do período. O ER usa a mediana por post, não a soma.
             {/* The profile shows a lifetime figure. Naming it here is what stops
                 "os números não batem" — both numbers are right, they count
                 different things. */}
             {view.lifetimeLikes != null && (
               <>
-                {" "}No perfil, o {view.label} mostra{" "}
-                <b style={{ color: "var(--ink)" }}>{formatCount(view.lifetimeLikes)}</b> curtidas —
-                esse é o total de toda a conta, desde sempre.
+                {" "}Total da conta no perfil do {view.label}:{" "}
+                <b style={{ color: "var(--ink)" }}>{formatCount(view.lifetimeLikes)}</b> curtidas.
               </>
             )}
           </Caption>
@@ -467,15 +461,12 @@ function CollectionNote({ trend, windowDays }: { trend: { at: string }[]; window
       <span style={{ fontSize: 12.5, lineHeight: 1.5, color: short ? "var(--ink)" : "var(--ink-500)" }}>
         {short ? (
           <>
-            <b style={{ color: "var(--accent)" }}>Só temos histórico a partir de {label}.</b>{" "}
-            Começamos a registrar as métricas dessa conta nesse dia, então não há dados retroativos
-            para o resto do período selecionado — a curva não está incompleta, ela começa aqui.
-            Ela se estende sozinha a cada dia.
+            <b style={{ color: "var(--accent)" }}>Histórico disponível a partir de {label}.</b>{" "}
+            Sem dados anteriores a essa data. A curva se estende a cada dia registrado.
           </>
         ) : (
           <>
-            Um ponto por dia desde {label}. Toque, passe o mouse ou use as setas para ver o valor de
-            cada dia.
+            Um ponto por dia desde {label}. Passe o mouse ou use as setas para ver cada dia.
           </>
         )}
       </span>
@@ -600,33 +591,28 @@ function Content({ view }: { view: PlatformView }) {
       )}
 
       <Caption style={{ marginTop: 18 }}>
-        Ordenados do maior para o menor engajamento.{" "}
+        {view.platform === "instagram"
+          ? "ER do post = (curtidas + comentários + salvos + enviados) ÷ seguidores."
+          : "ER do post = (curtidas + comentários + compartilhamentos) ÷ views."}{" "}
+        Ordenados por engajamento, do maior para o menor.{" "}
         {c.confidence === "none" ? (
           <>
-            Com {c.all.length} {c.all.length === 1 ? "post" : "posts"} não dá para estabelecer uma
-            média do perfil, então nenhum é marcado como destaque. Amplie o período.
+            {c.all.length} {c.all.length === 1 ? "post" : "posts"} no período.
           </>
         ) : c.confidence === "weak" ? (
-          <>
-            São {c.all.length} posts — poucos para uma leitura fina, então só marcamos o que se
-            destaca de forma evidente {flagged > 0 ? `(${flagged} aqui)` : "(nenhum aqui)"}. Amplie
-            o período para uma comparação mais firme.
-          </>
+          <>{c.all.length} posts no período. Marcações exigem desvio maior nesse volume.</>
         ) : (
           <>
-            Marcamos <b>viral</b> quando o post foi entregue a mais de 10× a base de seguidores ou
-            desviou muito da mediana, <b>acima</b> a partir de 1 desvio acima dela e <b>abaixo</b>{" "}
-            só a partir de 2 desvios abaixo — é mais fácil se destacar para cima do que para baixo.
+            Viral: entrega acima de 5x a base de seguidores. Acima da média: 1 desvio acima da
+            mediana do perfil. Abaixo da média: 2 desvios abaixo.
           </>
         )}
       </Caption>
 
       {c.paid.length > 0 && filter !== "organic" && (
         <Caption style={{ marginTop: 10 }}>
-          Publi é detectada pela descrição: a hashtag <b>#publi</b>, <b>#publicidade</b>,{" "}
-          <b>#ad</b>, <b>#ads</b>, <b>#paid</b>, <b>#parceria</b>, <b>#publipost</b> ou{" "}
-          <b>#recebido</b>. O <b>#</b> é obrigatório, e <b>#adidas</b> não conta como <b>#ad</b>. Se
-          o creator esquecer a hashtag, o post aparece como orgânico.
+          Publi identificada por hashtag na descrição: #publi, #publicidade, #ad, #ads, #paid,
+          #parceria, #publipost, #recebido. Sem a hashtag, o post consta como orgânico.
         </Caption>
       )}
     </Section>
@@ -659,7 +645,7 @@ function PostTile({ post, platform }: { post: Post; platform: "instagram" | "tik
         {post.standout && (
           <span className={`post-flag ${post.standout}`} style={{ top: paid ? 56 : 30 }}>
             {post.standout === "viral"
-              ? post.reachMultiple && post.reachMultiple >= 10
+              ? post.reachMultiple && post.reachMultiple >= 5
                 ? `Viral · ${Math.round(post.reachMultiple)}× a base`
                 : "Viral"
               : post.standout === "high"
@@ -783,7 +769,7 @@ function AudienceDisclosure({
             )}
           </div>
           <p className="caption" style={{ marginTop: 18 }}>
-            Dados de seguidores, não das pessoas alcançadas por um post específico.
+            Dados dos seguidores, não das pessoas alcançadas por um post.
           </p>
         </>
       )}
@@ -882,21 +868,20 @@ function ScoreDisclosure({
           ))}
         </div>
         <Caption>
-          Cada componente usa a mesma escala: 50 é o piso do normal, 80 é o topo do normal, 100 é o
-          dobro do topo. Componentes sem dados ficam de fora e os demais são repesados, então uma
-          métrica ausente nunca custa pontos silenciosamente.
+          Escala igual em todos os componentes: 50 é o piso do normal, 80 o topo, 100 o dobro do
+          topo. Componentes sem dados ficam de fora e os demais são repesados.
         </Caption>
         {variant === "agency" && view.mediaValue && (
           <div style={{ borderTop: "1px solid var(--line)", paddingTop: 16 }}>
             <div className="micro" style={{ marginBottom: 8 }}>Valor de mídia por post</div>
             <Stat
-              value={`${view.mediaValue.currency}${formatNumber(view.mediaValue.low)}–${formatNumber(view.mediaValue.high)}`}
+              value={`${view.mediaValue.currency}${formatNumber(view.mediaValue.low)} a ${formatNumber(view.mediaValue.high)}`}
               size={30}
             />
             <Caption style={{ marginTop: 8 }}>
-              As views de um post típico a um CPM de {view.mediaValue.currency}
-              {view.mediaValue.cpm[0]}–{view.mediaValue.cpm[1]}. É o piso de mídia comprada, não uma
-              tabela de preços — o cachê normalmente fica acima disso.
+              Views de um post típico a um CPM de {view.mediaValue.currency}
+              {view.mediaValue.cpm[0]} a {view.mediaValue.cpm[1]}. Piso de mídia comprada, não
+              tabela de preços.
             </Caption>
           </div>
         )}

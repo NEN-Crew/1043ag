@@ -1,4 +1,4 @@
-export const metadata = { title: "Privacy Policy — Pulse" };
+export const metadata = { title: "Privacy Policy · Pulse" };
 
 // Contact address shown on the legal pages.
 const CONTACT = "contato@1043.ag";
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
         <p>
           Statistics are retained for as long as you collaborate with the Agency, to
           allow historical reporting. You may disconnect a platform at any time by
-          revoking the app&apos;s access in Instagram/TikTok settings — this invalidates
+          revoking the app&apos;s access in Instagram/TikTok settings. This invalidates
           the stored token. To have your account and stored data deleted, contact{" "}
           <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and we will remove them within 30
           days.
