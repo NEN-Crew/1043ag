@@ -15,6 +15,7 @@ import {
   EFFORT_SHARE_ANCHORS,
   EFFORT_SHARE_ANCHORS_TIKTOK,
   MIN_POSTS_TO_SCORE,
+  TIKTOK_ER_ANCHORS,
   Tier,
   VIEW_RATE_ANCHORS,
   engagementAnchors,
@@ -160,9 +161,14 @@ export type PlatformView = {
   /** Lifetime likes across the whole account. TikTok reports it; Instagram doesn't. */
   lifetimeLikes: number | null;
 
-  /** Ordered by engagement. Neutral names on purpose — a post that reached more
-   *  people is not a "worse" post, and a creator shouldn't read it that way. */
-  content: { higher: Post[]; lower: Post[] };
+  /**
+   * Posts grouped by how far they sit from this account's own median, never by
+   * rank. Ranking put the same post in both groups whenever the window held
+   * fewer posts than the two slices asked for, and "top 4 of 4" was a claim
+   * about nothing. `all` is every post in the window, ordered; `higher` and
+   * `lower` are empty when the sample is too small to call anything an outlier.
+   */
+  content: { all: Post[]; higher: Post[]; lower: Post[]; paid: Post[]; splittable: boolean };
   /** Median of the recent posts. Medians, so one viral post doesn't set the bar. */
   typical: { views: number | null; reach: number | null; likes: number | null; comments: number | null };
   /** (saves + shares) ÷ reach. Instagram only — the distribution signal. */
@@ -172,7 +178,7 @@ export type PlatformView = {
    * content behind it. The line itself is a rolling median across recent posts,
    * not one post — this says what landed that day, it doesn't relabel the point.
    */
-  published: { at: string; thumbnailUrl: string | null; caption: string }[];
+  published: { at: string; thumbnailUrl: string | null; caption: string; formatLabel: string }[];
 
   score: number | null;
   scoreVerdict: Verdict | null;
@@ -181,6 +187,19 @@ export type PlatformView = {
   mediaValue: { low: number; high: number; currency: string; cpm: [number, number] } | null;
   caveat: string | null;
 };
+
+/**
+ * Paid-partnership detection, from the caption. One predicate, used by the
+ * tile, the counter and the paid-only section, so they can never disagree.
+ *
+ * The leading # is required — the bare word "ad" inside normal prose must not
+ * match — and the trailing \b keeps #adidas and #advogado out.
+ */
+export const PUBLI_RE = /#(publi|publicidade|ad|ads|paid|parceria|publipost|recebido)\b/i;
+
+export function isPaid(post: { caption: string }): boolean {
+  return PUBLI_RE.test(post.caption ?? "");
+}
 
 const DASH = "—";
 const pct = (n: number | null, d = 1) => (n == null ? DASH : `${n.toFixed(d)}%`);
@@ -244,7 +263,15 @@ function toPosts(platform: Platform, stats: any, followers: number | null): Inte
       format: fmt.key,
       formatLabel: fmt.label,
       caption: ((isIg ? p.caption : p.title) || "").replace(/\s+/g, " ").trim(),
-      er: ratio(interactions, followers),
+      // Denominator per platform, chosen by how each one distributes.
+      //
+      // Instagram delivers mostly to followers, so followers is the right base
+      // and the published tier bands apply. TikTok's For You page does not:
+      // this account did 97.477 views on 2.110 followers, and dividing by
+      // followers gave posts a "rate" of 676% and the account a bogus
+      // "Excelente" against an Instagram-shaped band. Views are what TikTok
+      // actually delivered, and every TikTok analytics tool uses them.
+      er: isIg ? ratio(interactions, followers) : ratio(interactions, views),
       reachRate: ratio(interactions, reach ?? views),
       likes,
       comments,
@@ -289,6 +316,65 @@ export type HistoryInput = {
   growthPct: number | null;
 };
 
+/**
+ * Below this many posts, no post gets called an outlier. MAD and the median
+ * both fluctuate badly on small samples, so "this one stood out" would be
+ * noise wearing a label.
+ */
+const MIN_POSTS_TO_SPLIT = 6;
+
+/**
+ * Splits posts by distance from the account's own median, using the median
+ * absolute deviation as the unit of spread. MAD is the robust choice here: it
+ * has a 50% breakdown point, so a single viral post can't drag the threshold
+ * up behind it the way a standard deviation would.
+ *
+ * The two cutoffs are deliberately asymmetric. One MAD above the median is
+ * enough to be called out as strong; it takes two below to be called out as
+ * weak. Being generous upward and strict downward is the right bias when a
+ * creator reads their own report.
+ */
+function classify(posts: Internal[]): PlatformView["content"] {
+  const rated = posts.filter((p) => p.er != null).sort((a, b) => b.er! - a.er!);
+  const paid = rated.filter(isPaid);
+  const base = { all: rated, paid };
+
+  if (rated.length < MIN_POSTS_TO_SPLIT) {
+    return { ...base, higher: [], lower: [], splittable: false };
+  }
+
+  const ers = rated.map((p) => p.er!);
+  const m = median(ers)!;
+
+  /**
+   * Spread is measured on each side of the median separately.
+   *
+   * Engagement rates are right-skewed and floored at zero: a couple of posts
+   * that took off stretch the upper tail while the lower one stays compressed.
+   * A single symmetric MAD absorbs that skew, and `median − 2·MAD` then lands
+   * below zero — on this roster it did, so nothing could ever qualify as weak.
+   * One-sided deviations keep each threshold on the scale of the side it judges.
+   */
+  const sideSpread = (side: number[]) => {
+    const d = median(side.map((e) => Math.abs(e - m)));
+    // Falls back proportionally when a side is empty or every post is alike.
+    return d && d > 0 ? d : m * 0.15;
+  };
+  const upper = sideSpread(ers.filter((e) => e > m));
+  const lower = sideSpread(ers.filter((e) => e < m));
+
+  const higher = rated.filter((p) => p.er! >= m + upper);
+  const lowest = rated.filter((p) => p.er! <= m - 2 * lower);
+
+  return {
+    ...base,
+    // Disjoint by construction: m + spread is always above m − 2·spread.
+    higher: higher.slice(0, 4),
+    lower: lowest.slice(-3),
+    splittable: true,
+  };
+}
+
 /** The periods the UI offers. 30 days is the default and the industry norm. */
 export const WINDOWS = [7, 30, 90, 365] as const;
 export const DEFAULT_WINDOW = 30;
@@ -327,7 +413,9 @@ export function analyze(
   };
   const typicalInteractions = median(posts.map((p) => p.interactions));
 
-  const engagementRate = ratio(typicalInteractions, followers);
+  const engagementRate = isIg
+    ? ratio(typicalInteractions, followers)
+    : ratio(typicalInteractions, typical.views);
   const byReach = median(posts.map((p) => p.reachRate));
   const viewRate = ratio(typical.views, followers);
   const sendsPerReach = isIg ? median(posts.map((p) => ratio(p.sends, p.reach))) : null;
@@ -355,9 +443,9 @@ export function analyze(
       key: "engagement",
       label: "Engajamento",
       weight: 0.4,
-      score: scoreAt(engagementRate, engagementAnchors(tier)),
+      score: scoreAt(engagementRate, isIg ? engagementAnchors(tier) : TIKTOK_ER_ANCHORS),
       display: pct(engagementRate, 2),
-      benchmark: `${tier.name}: ${tier.band[0]}–${tier.band[1]}%`,
+      benchmark: isIg ? `${tier.name}: ${tier.band[0]}–${tier.band[1]}%` : "4–8% sobre as views",
       note: `Reações em um post típico sobre os ${int(followers)} seguidores. Avaliado contra o normal para uma conta ${tier.name.toLowerCase()}, porque o engajamento cai conforme a audiência cresce.`,
     },
     {
@@ -398,7 +486,7 @@ export function analyze(
   const weight = scored.reduce((a, c) => a + c.weight, 0);
   const score = weight ? Math.round(scored.reduce((a, c) => a + c.score! * c.weight, 0) / weight) : null;
 
-  const ranked = posts.filter((p) => p.er != null).sort((a, b) => b.er! - a.er!);
+  const content = classify(posts);
 
   const summary: SummaryMetric[] = [
     {
@@ -459,7 +547,11 @@ export function analyze(
       verdict: verdictFor(components[0].score),
       // Says what the chip is measured against, so the reader can check it
       // instead of wondering where the word came from.
-      verdictNote: `${tier.name} · ${tier.band[0]}–${tier.band[1]}% é o esperado para esse porte`,
+      // The tier name ("Nano") reads as a label on the person. The band says the
+      // same thing without ranking them.
+      verdictNote: isIg
+        ? `${tier.band[0]}–${tier.band[1]}% é o esperado para um perfil desse tamanho`
+        : "4–8% sobre as views é o esperado no TikTok",
       commentsRate,
       likesPerComment,
       breakdown,
@@ -470,14 +562,18 @@ export function analyze(
     postsPerWeek: cadence,
     window,
 
-    // Both groups read the same direction, highest to lowest.
-    content: { higher: ranked.slice(0, 4), lower: ranked.slice(-3) },
+    content,
     typical,
     sendsPerReach,
     lifetimeLikes: stats.likes_total ?? null,
     published: posts
       .filter((p) => p.postedAt)
-      .map((p) => ({ at: p.postedAt!, thumbnailUrl: p.thumbnailUrl, caption: p.caption })),
+      .map((p) => ({
+        at: p.postedAt!,
+        thumbnailUrl: p.thumbnailUrl,
+        caption: p.caption,
+        formatLabel: p.formatLabel,
+      })),
 
     score,
     scoreVerdict: verdictFor(score),
@@ -580,12 +676,6 @@ export function overallScore(views: (PlatformView | null)[]): number | null {
   return Math.round(xs.reduce((a, x) => a + x.score! * Math.max(1, x.followers ?? 1), 0) / weight);
 }
 
-/** Paid-partnership detection. One predicate, used by both the tile and the count. */
-export const PUBLI_RE = /#(publi|publicidade|ad|ads|paid|parceria|publipost)\b/i;
-
-export function isPaid(post: Post): boolean {
-  return PUBLI_RE.test(post.caption ?? "");
-}
 
 /** Reads the window off a URL param, refusing anything not on the menu. */
 export function parseWindow(raw: string | undefined): number {

@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Clock,
   Comment,
+  Eye,
   Heart,
   Info,
   KindIcon,
@@ -262,8 +263,6 @@ function Masthead({
                   <span>
                     {formatCount(view.followers)} seguidores no {view.label}
                   </span>
-                  <span style={{ opacity: 0.5 }}>·</span>
-                  <span>{view.tier.name}</span>
                 </>
               )}
             </div>
@@ -387,9 +386,7 @@ function Engagement({ view }: { view: PlatformView }) {
                  tiny, and without a floor the axis would magnify it into drama. */
               minSpan={1}
             />
-            <Caption style={{ marginTop: 10 }}>
-              Um ponto por dia. Toque, passe o mouse ou use as setas para ver o valor de cada dia.
-            </Caption>
+            <CollectionNote trend={e.trend} windowDays={view.window.days} />
           </>
         ) : (
           <Caption>
@@ -439,6 +436,50 @@ function Engagement({ view }: { view: PlatformView }) {
         </div>
       )}
     </Section>
+  );
+}
+
+/**
+ * The chart can only ever start where our collection started. Selecting twelve
+ * months on an account we began tracking last week draws a week-long line under
+ * a twelve-month heading, which reads as missing data rather than as data that
+ * never existed. So it says which it is.
+ */
+function CollectionNote({ trend, windowDays }: { trend: { at: string }[]; windowDays: number }) {
+  if (!trend.length) return null;
+  const since = new Date(trend[0].at);
+  const covered = (Date.now() - since.getTime()) / 864e5;
+  // More than a fifth of the window missing is worth flagging rather than
+  // leaving the reader to infer it from the axis.
+  const short = covered < windowDays * 0.8;
+  const label = since.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+
+  return (
+    <div
+      style={{
+        marginTop: 12, display: "flex", gap: 8, alignItems: "flex-start",
+        ...(short
+          ? { border: "1px solid var(--accent)", padding: "11px 13px" }
+          : {}),
+      }}
+    >
+      <Info size={13} className={short ? undefined : undefined} />
+      <span style={{ fontSize: 12.5, lineHeight: 1.5, color: short ? "var(--ink)" : "var(--ink-500)" }}>
+        {short ? (
+          <>
+            <b style={{ color: "var(--accent)" }}>Só temos histórico a partir de {label}.</b>{" "}
+            Começamos a registrar as métricas dessa conta nesse dia, então não há dados retroativos
+            para o resto do período selecionado — a curva não está incompleta, ela começa aqui.
+            Ela se estende sozinha a cada dia.
+          </>
+        ) : (
+          <>
+            Um ponto por dia desde {label}. Toque, passe o mouse ou use as setas para ver o valor de
+            cada dia.
+          </>
+        )}
+      </span>
+    </div>
   );
 }
 
@@ -505,14 +546,14 @@ function Reach({ view }: { view: PlatformView }) {
 /* ─────────────────────── 03 · conteúdo ─────────────────────── */
 
 function Content({ view }: { view: PlatformView }) {
-  const all = useMemo(() => [...view.content.higher, ...view.content.lower], [view]);
-  const publi = all.filter(isPaid).length;
-  const organic = all.length - publi;
+  const c = view.content;
+  const publi = c.paid.length;
+  const organic = c.all.length - publi;
 
-  if (!all.length) {
+  if (!c.all.length) {
     return (
-      <Section index={3} caption="posts recentes, por engajamento" title="conteúdo">
-        <Caption>Nenhum post recente com métricas ainda.</Caption>
+      <Section index={3} caption="posts do período" title="conteúdo">
+        <Caption>Nenhum post com métricas nesse período.</Caption>
       </Section>
     );
   }
@@ -520,48 +561,81 @@ function Content({ view }: { view: PlatformView }) {
   return (
     <Section
       index={3}
-      caption="posts recentes, por engajamento"
+      caption="posts do período"
       title="conteúdo"
       headRight={
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--ink-400)" }}>
             <span style={{ width: 7, height: 7, background: "var(--ink-300)" }} />
-            {organic} orgânico
+            {organic} orgânico{organic === 1 ? "" : "s"}
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--accent)" }}>
             <span style={{ width: 7, height: 7, background: "var(--accent)" }} />
-            {publi} publi
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--ink-400)" }}>
-            <Info size={12} />
-            publi detectada pela descrição
+            {publi} publi{publi === 1 ? "" : "s"}
           </span>
         </div>
       }
     >
-      <PostGroup
-        label="Mais engajamento"
-        posts={view.content.higher}
-        platform={view.platform}
-      />
-      {view.content.lower.length > 0 && (
-        <div style={{ marginTop: 26 }}>
-          <PostGroup
-            label="Menos engajamento"
-            posts={view.content.lower}
-            platform={view.platform}
-            lower
-          />
+      {c.splittable ? (
+        <>
+          {c.higher.length > 0 && (
+            <PostGroup
+              label="Acima da média deste perfil"
+              posts={c.higher}
+              platform={view.platform}
+            />
+          )}
+          {c.lower.length > 0 && (
+            <div style={{ marginTop: c.higher.length ? 26 : 0 }}>
+              <PostGroup
+                label="Bem abaixo da média deste perfil"
+                posts={c.lower}
+                platform={view.platform}
+                lower
+              />
+            </div>
+          )}
+          {c.higher.length === 0 && c.lower.length === 0 && (
+            <PostGroup label="Todos os posts do período" posts={c.all} platform={view.platform} />
+          )}
+          <Caption style={{ marginTop: 18 }}>
+            Comparado com a mediana do próprio perfil no período, usando o desvio absoluto mediano
+            como medida de dispersão. Um post entra em <b>acima</b> a partir de 1 desvio acima da
+            mediana, e em <b>bem abaixo</b> só a partir de 2 desvios abaixo — de propósito é mais
+            fácil se destacar para cima do que para baixo. Posts dentro da faixa normal não são
+            rotulados.
+          </Caption>
+        </>
+      ) : (
+        <>
+          <PostGroup label="Todos os posts do período" posts={c.all} platform={view.platform} />
+          <Caption style={{ marginTop: 18 }}>
+            {c.all.length} {c.all.length === 1 ? "post" : "posts"} no período — poucos para dizer que
+            algum é destaque ou exceção. Com essa quantidade, a mediana e a dispersão oscilam demais
+            e qualquer rótulo seria ruído. Amplie o período para uma leitura comparativa.
+          </Caption>
+        </>
+      )}
+
+      {c.paid.length > 0 && (
+        <div style={{ marginTop: 34, borderTop: "1px solid var(--line)", paddingTop: 24 }}>
+          <div style={{ marginBottom: 12 }}>
+            <Eyebrow>Publis do período · {c.paid.length}</Eyebrow>
+          </div>
+          <div className="post-grid">
+            {c.paid.map((p) => (
+              <PostTile key={p.id} post={p} platform={view.platform} />
+            ))}
+          </div>
+          <Caption style={{ marginTop: 14 }}>
+            Todas as publicações pagas do período, sem ranqueamento. Detectadas pela descrição:
+            uma hashtag <b>#publi</b>, <b>#publicidade</b>, <b>#ad</b>, <b>#ads</b>, <b>#paid</b>,{" "}
+            <b>#parceria</b>, <b>#publipost</b> ou <b>#recebido</b>. A hashtag é obrigatória — a
+            palavra solta no meio do texto não conta, e <b>#adidas</b> não é confundido com{" "}
+            <b>#ad</b>. Se o creator esquecer a hashtag, o post aparece como orgânico.
+          </Caption>
         </div>
       )}
-      <Caption style={{ marginTop: 18 }}>
-        ER de cada post ={" "}
-        {view.platform === "instagram"
-          ? "(curtidas + comentários + salvos + enviados)"
-          : "(curtidas + comentários + compartilhamentos)"}{" "}
-        ÷ seguidores — a mesma conta do número grande lá em cima. Os números na barra de cada post
-        são exatamente o que entra nela, então a ordem nunca contradiz o que está à vista.
-      </Caption>
     </Section>
   );
 }
@@ -619,6 +693,9 @@ function PostTile({ post, platform, lower }: { post: Post; platform: "instagram"
         )}
         {/* Every input to the badge, so the number is always checkable. */}
         <span className="post-stats">
+          {platform === "tiktok" && post.views != null && (
+            <span className="post-stat"><Eye size={12} />{formatCount(post.views)}</span>
+          )}
           <span className="post-stat"><Heart size={12} />{formatCount(post.likes)}</span>
           <span className="post-stat"><Comment size={12} />{formatCount(post.comments)}</span>
           {post.sends != null && (

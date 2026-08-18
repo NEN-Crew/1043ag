@@ -128,3 +128,15 @@ export function grade(score: number | null | undefined): Grade | null {
   if (score >= 40) return { label: "Fair", tone: "ok" };
   return { label: "Needs work", tone: "low" };
 }
+
+/**
+ * TikTok engagement is measured over views, not followers — the For You page
+ * delivers far beyond the follower base, so a follower denominator produces
+ * rates above 100% and grades every viral account "Excelente" by accident.
+ * Published benchmarks put a healthy TikTok between 4% and 8% of views.
+ */
+export const TIKTOK_ER_ANCHORS: Anchor[] = [
+  { at: 4, score: 50 },
+  { at: 8, score: 80 },
+  { at: 16, score: 100 },
+];

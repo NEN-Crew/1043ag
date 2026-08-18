@@ -16,7 +16,7 @@ type Props = {
   color?: string;
   height?: number;
   /** Content published on a given day, surfaced in that day's tooltip. */
-  markers?: { at: string; thumbnailUrl: string | null; caption: string }[];
+  markers?: { at: string; thumbnailUrl: string | null; caption: string; formatLabel?: string }[];
   /**
    * Smallest y-range the axis is allowed to show. Without it the axis rescales
    * to whatever the data happens to span, and a 0,02 point wiggle is drawn as
@@ -42,7 +42,7 @@ export default function Chart({
 
   const day = (iso: string) => iso.slice(0, 10);
   const publishedBy = useMemo(() => {
-    const m = new Map<string, { thumbnailUrl: string | null; caption: string }[]>();
+    const m = new Map<string, { thumbnailUrl: string | null; caption: string; formatLabel?: string }[]>();
     for (const k of markers ?? []) m.set(day(k.at), [...(m.get(day(k.at)) ?? []), k]);
     return m;
   }, [markers]);
@@ -270,14 +270,27 @@ export default function Chart({
               ) : (
                 <span style={{ width: 64, height: 64, background: "rgba(229,229,229,0.18)", flex: "none" }} />
               )}
-              <span
-                style={{
-                  fontSize: 11.5, lineHeight: 1.4, color: "rgba(229,229,229,0.82)",
-                  overflow: "hidden", display: "-webkit-box",
-                  WebkitLineClamp: 3, WebkitBoxOrient: "vertical", whiteSpace: "normal",
-                }}
-              >
-                {k.caption || "publicado nesse dia"}
+              <span style={{ minWidth: 0 }}>
+                {k.formatLabel && (
+                  <span
+                    style={{
+                      display: "inline-block", marginBottom: 4, padding: "2px 6px",
+                      background: "rgba(229,229,229,0.16)", fontSize: 9.5, fontWeight: 700,
+                      letterSpacing: "0.08em", textTransform: "uppercase",
+                    }}
+                  >
+                    {k.formatLabel}
+                  </span>
+                )}
+                <span
+                  style={{
+                    display: "-webkit-box", fontSize: 11.5, lineHeight: 1.4,
+                    color: "rgba(229,229,229,0.82)", overflow: "hidden",
+                    WebkitLineClamp: 2, WebkitBoxOrient: "vertical", whiteSpace: "normal",
+                  }}
+                >
+                  {k.caption || "publicado nesse dia"}
+                </span>
               </span>
             </div>
           ))}
