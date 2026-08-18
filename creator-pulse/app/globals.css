@@ -477,3 +477,11 @@ a.rank-row:hover { background: rgba(22, 73, 214, 0.05); }
 
 /* A chart is a block in its own right, not an ornament in a section header. */
 .block-chart { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--line); }
+
+/* The period control scopes everything below it, so it sits above the sections. */
+.window-picker {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 22px 0 6px;
+}
+.window-picker .caption { margin-left: auto; }
+@media (max-width: 560px) { .window-picker .caption { margin-left: 0; } }

@@ -22,9 +22,18 @@ function median(values: (number | null | undefined)[]): number | null {
   return xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
 }
 
-/** Engagement rate at the moment a snapshot was taken. */
-function erAt(row: Row, platform: "instagram" | "tiktok"): number | null {
-  const items = (platform === "instagram" ? row.post_metrics : row.video_metrics) ?? [];
+/**
+ * Engagement rate at the moment a snapshot was taken, over the same window the
+ * page is showing. Without the window the chart would plot a different ER from
+ * the headline — same name, different set of posts.
+ */
+function erAt(row: Row, platform: "instagram" | "tiktok", windowDays: number): number | null {
+  const all = (platform === "instagram" ? row.post_metrics : row.video_metrics) ?? [];
+  const cutoff = new Date(row.captured_at).getTime() - windowDays * 864e5;
+  const items = all.filter((m: any) => {
+    const at = platform === "instagram" ? Date.parse(m.timestamp ?? "") : (m.createTime ?? 0) * 1000;
+    return Number.isFinite(at) && at >= cutoff;
+  });
   if (!items.length || !row.followers) return null;
   // Same formula as the live view — the sum of the parts, never Instagram's
   // total_interactions. If these diverged, the chart would step on the day the
@@ -48,7 +57,7 @@ function oncePerDay(rows: Row[]): Row[] {
   );
 }
 
-function build(rows: Row[], platform: "instagram" | "tiktok"): HistoryInput {
+function build(rows: Row[], platform: "instagram" | "tiktok", windowDays: number): HistoryInput {
   const daily = oncePerDay(rows);
 
   const followerPoints = daily
@@ -56,7 +65,7 @@ function build(rows: Row[], platform: "instagram" | "tiktok"): HistoryInput {
     .map((r) => ({ at: new Date(r.captured_at).getTime(), value: r.followers as number }));
 
   const erPoints = daily
-    .map((r) => ({ at: new Date(r.captured_at).getTime(), value: erAt(r, platform) }))
+    .map((r) => ({ at: new Date(r.captured_at).getTime(), value: erAt(r, platform, windowDays) }))
     .filter((p): p is { at: number; value: number } => p.value != null);
 
   /**
@@ -106,7 +115,10 @@ const EMPTY: HistoryInput = {
 };
 
 /** History for many creators in two queries, for the agency roster. */
-export async function getHistory(ids: string[]): Promise<Map<string, HistoryByPlatform>> {
+export async function getHistory(
+  ids: string[],
+  windowDays: number = 30
+): Promise<Map<string, HistoryByPlatform>> {
   const out = new Map<string, HistoryByPlatform>();
   if (!ids.length) return out;
 
@@ -131,8 +143,8 @@ export async function getHistory(ids: string[]): Promise<Map<string, HistoryByPl
 
   for (const id of ids) {
     out.set(id, {
-      instagram: build(igBy.get(id) ?? [], "instagram"),
-      tiktok: build(ttBy.get(id) ?? [], "tiktok"),
+      instagram: build(igBy.get(id) ?? [], "instagram", windowDays),
+      tiktok: build(ttBy.get(id) ?? [], "tiktok", windowDays),
     });
   }
   return out;

@@ -61,6 +61,35 @@ export function refreshToken(refresh: string) {
   });
 }
 
+/** Same caps as Instagram: enough for a 12-month window, bounded work. */
+const MAX_VIDEOS = 60;
+const MAX_AGE_DAYS = 400;
+
+async function fetchAllVideos(accessToken: string): Promise<any[]> {
+  const fields =
+    "id,title,video_description,cover_image_url,share_url,create_time,view_count,like_count,comment_count,share_count";
+  const out: any[] = [];
+  const cutoff = (Date.now() - MAX_AGE_DAYS * 864e5) / 1000;
+  let cursor: number | undefined;
+
+  for (let page = 0; page < 4 && out.length < MAX_VIDEOS; page++) {
+    const res = await fetch(`${API}/v2/video/list/?` + new URLSearchParams({ fields }), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ max_count: 20, ...(cursor ? { cursor } : {}) }),
+    });
+    if (!res.ok) break;
+    const d = (await res.json())?.data;
+    const batch = d?.videos ?? [];
+    out.push(...batch);
+    const oldest = batch[batch.length - 1]?.create_time;
+    if (!d?.has_more || (oldest && oldest < cutoff)) break;
+    cursor = d.cursor;
+  }
+
+  return out.filter((v) => !v.create_time || v.create_time >= cutoff).slice(0, MAX_VIDEOS);
+}
+
 export async function fetchStats(accessToken: string) {
   const userRes = await fetch(
     `${API}/v2/user/info/?` +
@@ -73,21 +102,7 @@ export async function fetchStats(accessToken: string) {
   if (!userRes.ok) throw new Error(`TikTok user failed: ${await userRes.text()}`);
   const user = (await userRes.json())?.data?.user ?? {};
 
-  const videoRes = await fetch(
-    `${API}/v2/video/list/?` +
-      new URLSearchParams({
-        fields:
-          "id,title,video_description,cover_image_url,share_url,create_time,view_count,like_count,comment_count,share_count",
-      }),
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ max_count: 12 }),
-    }
-  );
-  const videoData = videoRes.ok ? (await videoRes.json())?.data : { videos: [] };
-
-  const videos = (videoData?.videos ?? []).map((v: any) => ({
+  const videos = (await fetchAllVideos(accessToken)).map((v: any) => ({
     id: v.id,
     title: v.title || v.video_description || null,
     shareUrl: v.share_url ?? null,

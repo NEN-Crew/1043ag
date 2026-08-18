@@ -1,9 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { CreatorReport } from "@/lib/report";
 import type { Audience, PlatformView, Post } from "@/lib/metrics";
-import { isPaid } from "@/lib/metrics";
+import { WINDOWS, isPaid } from "@/lib/metrics";
 import {
   dash,
   formatCadence,
@@ -34,9 +34,22 @@ type Props = {
   report: CreatorReport;
   /** "self" is the creator looking at their own numbers; "agency" is staff. */
   variant: "self" | "agency";
+  windowDays: number;
 };
 
-export default function CreatorView({ report, variant }: Props) {
+const WINDOW_LABELS: Record<number, string> = {
+  7: "7 dias",
+  30: "30 dias",
+  90: "90 dias",
+  365: "12 meses",
+};
+
+/** dd/mm — enough to check a window against a calendar. */
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+export default function CreatorView({ report, variant, windowDays }: Props) {
   const router = useRouter();
   const [active, setActive] = useState(report.platforms[0]?.platform ?? "instagram");
   const [refreshing, setRefreshing] = useState(false);
@@ -82,6 +95,8 @@ export default function CreatorView({ report, variant }: Props) {
         variant={variant}
       />
 
+      <WindowPicker windowDays={windowDays} />
+
       {view ? (
         <>
           <Engagement view={view} />
@@ -118,6 +133,66 @@ export default function CreatorView({ report, variant }: Props) {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * The period every aggregate below is computed over. It lives in the URL so a
+ * given reading is shareable and survives a refresh.
+ */
+function WindowPicker({ windowDays }: { windowDays: number }) {
+  const router = useRouter();
+  const params = useSearchParams();
+
+  function set(days: number) {
+    const next = new URLSearchParams(params.toString());
+    if (days === 30) next.delete("janela");
+    else next.set("janela", String(days));
+    const qs = next.toString();
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }
+
+  return (
+    <div className="window-picker">
+      <span className="micro">Período</span>
+      <div className="segbox" role="tablist" aria-label="Período">
+        {WINDOWS.map((d) => (
+          <button
+            key={d}
+            role="tab"
+            aria-selected={d === windowDays}
+            className="seg"
+            onClick={() => set(d)}
+          >
+            {WINDOW_LABELS[d]}
+          </button>
+        ))}
+      </div>
+      <Caption>Todos os números abaixo são desse período.</Caption>
+    </div>
+  );
+}
+
+/** Nothing published in the window — say so, and say when they last did. */
+function EmptyWindow({ view }: { view: PlatformView }) {
+  return (
+    <div className="notice" style={{ borderColor: "var(--accent)" }}>
+      <div className="micro" style={{ color: "var(--accent)", marginBottom: 8 }}>
+        Nenhum post no período
+      </div>
+      <span style={{ color: "var(--ink)", fontSize: 13 }}>
+        {view.label} não teve publicações entre {shortDate(view.window.from)} e{" "}
+        {shortDate(view.window.to)}.{" "}
+        {view.window.lastPostAt
+          ? `O último post foi em ${new Date(view.window.lastPostAt).toLocaleDateString("pt-BR", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}.`
+          : "Não há posts registrados."}{" "}
+        Amplie o período acima para ver os números desse conteúdo.
+      </span>
+    </div>
   );
 }
 
@@ -228,10 +303,12 @@ function Engagement({ view }: { view: PlatformView }) {
     <Section
       index={1}
       first
-      caption={`Engajamento · north star · ${view.label}`}
+      caption={`Engajamento · ${view.label} · ${shortDate(view.window.from)} a ${shortDate(view.window.to)}`}
       title="engajamento"
     >
-      <div className="hero-split">
+      {view.window.posts === 0 && <EmptyWindow view={view} />}
+
+      <div className="hero-split" style={view.window.posts === 0 ? { display: "none" } : undefined}>
         <div className="hero-col">
           <div className="hero-rate">
             <span className="n">{formatRate(e.rate)}</span>
@@ -257,6 +334,7 @@ function Engagement({ view }: { view: PlatformView }) {
         </div>
       </div>
 
+      {view.window.posts > 0 && (
       <div className="support-row">
         <span className="support-item">
           <Comment size={14} />
@@ -277,6 +355,7 @@ function Engagement({ view }: { view: PlatformView }) {
           </span>
         )}
       </div>
+      )}
 
       <section className="block-chart">
         <div style={{ marginBottom: 14 }}>
@@ -311,7 +390,8 @@ function Engagement({ view }: { view: PlatformView }) {
         <div style={{ marginTop: 26 }}>
           <div style={{ marginBottom: 12 }}>
             <Eyebrow>
-              Tipos de engajamento · soma dos {view.window?.posts ?? view.content.higher.length} posts
+              Tipos de engajamento · soma dos {view.window.posts} posts ·{" "}
+              {shortDate(view.window.from)} a {shortDate(view.window.to)}
             </Eyebrow>
           </div>
           <div
@@ -329,8 +409,18 @@ function Engagement({ view }: { view: PlatformView }) {
             ))}
           </div>
           <Caption style={{ marginTop: 10 }}>
-            Totais somados dos posts recentes. Não se encaixam direto no ER acima porque o ER usa a
-            mediana de um post, não a soma de todos.
+            Somas dos {view.window.posts} posts do período. Não se encaixam direto no ER acima
+            porque o ER usa a mediana de um post, não a soma de todos.
+            {/* The profile shows a lifetime figure. Naming it here is what stops
+                "os números não batem" — both numbers are right, they count
+                different things. */}
+            {view.lifetimeLikes != null && (
+              <>
+                {" "}No perfil, o {view.label} mostra{" "}
+                <b style={{ color: "var(--ink)" }}>{formatCount(view.lifetimeLikes)}</b> curtidas —
+                esse é o total de toda a conta, desde sempre.
+              </>
+            )}
           </Caption>
         </div>
       )}

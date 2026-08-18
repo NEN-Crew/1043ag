@@ -3,6 +3,7 @@ import { decrypt, encrypt } from "./crypto";
 import { HistoryByPlatform, emptyHistory, getHistory } from "./history";
 import {
   Audience,
+  DEFAULT_WINDOW,
   Delta,
   PlatformView,
   Verdict,
@@ -64,11 +65,12 @@ function assemble(
   connected: Set<string>,
   igStats: any | null,
   ttStats: any | null,
-  history: HistoryByPlatform
+  history: HistoryByPlatform,
+  windowDays: number
 ): CreatorReport {
   const views = [
-    connected.has("instagram") ? analyze("instagram", igStats, history.instagram) : null,
-    connected.has("tiktok") ? analyze("tiktok", ttStats, history.tiktok) : null,
+    connected.has("instagram") ? analyze("instagram", igStats, history.instagram, windowDays) : null,
+    connected.has("tiktok") ? analyze("tiktok", ttStats, history.tiktok, windowDays) : null,
   ].filter((v): v is PlatformView => v != null);
 
   const followers = views.map((v) => v.followers).filter((f): f is number => f != null);
@@ -88,7 +90,10 @@ function assemble(
   };
 }
 
-export async function getReport(influencerId: string): Promise<CreatorReport | null> {
+export async function getReport(
+  influencerId: string,
+  windowDays: number = DEFAULT_WINDOW
+): Promise<CreatorReport | null> {
   const inf = (await sql`select id, name, email from influencers where id = ${influencerId}`)[0];
   if (!inf) return null;
 
@@ -96,7 +101,7 @@ export async function getReport(influencerId: string): Promise<CreatorReport | n
     sql`select platform from connections where influencer_id = ${influencerId}`,
     sql`select * from instagram_stats where influencer_id = ${influencerId}`,
     sql`select * from tiktok_stats where influencer_id = ${influencerId}`,
-    getHistory([influencerId]),
+    getHistory([influencerId], windowDays),
   ]);
 
   return assemble(
@@ -104,7 +109,8 @@ export async function getReport(influencerId: string): Promise<CreatorReport | n
     new Set((conns as any[]).map((c) => c.platform)),
     igRows[0] ?? null,
     ttRows[0] ?? null,
-    history.get(influencerId) ?? emptyHistory
+    history.get(influencerId) ?? emptyHistory,
+    windowDays
   );
 }
 
@@ -116,7 +122,7 @@ export async function getReport(influencerId: string): Promise<CreatorReport | n
  * the unit of comparison, not the person, and the network filter is what makes
  * the ranking like-for-like.
  */
-export async function getRoster(): Promise<AgencyRoster> {
+export async function getRoster(windowDays: number = DEFAULT_WINDOW): Promise<AgencyRoster> {
   const influencers = (await sql`
     select id, name, email from influencers order by created_at desc
   `) as any[];
@@ -134,7 +140,7 @@ export async function getRoster(): Promise<AgencyRoster> {
     sql`select influencer_id, platform from connections where influencer_id = any(${ids}::text[])`,
     sql`select * from instagram_stats where influencer_id = any(${ids}::text[])`,
     sql`select * from tiktok_stats where influencer_id = any(${ids}::text[])`,
-    getHistory(ids),
+    getHistory(ids, windowDays),
   ]);
 
   const connBy = new Map<string, Set<string>>();
@@ -161,7 +167,8 @@ export async function getRoster(): Promise<AgencyRoster> {
       connected,
       igBy.get(inf.id) ?? null,
       ttBy.get(inf.id) ?? null,
-      hist
+      hist,
+      windowDays
     );
 
     for (const v of report.platforms) {

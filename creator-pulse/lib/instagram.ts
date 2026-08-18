@@ -143,6 +143,47 @@ async function followerDemographics(accessToken: string) {
   return Object.keys(out).length ? out : null;
 }
 
+/** Caps: enough to cover a 12-month window without unbounded work. */
+const MAX_POSTS = 60;
+const MAX_AGE_DAYS = 400;
+
+async function fetchAllMedia(accessToken: string): Promise<any[]> {
+  const fields =
+    "id,caption,media_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count";
+  let url =
+    `${GRAPH}/me/media?` + new URLSearchParams({ fields, limit: "50", access_token: accessToken });
+  const out: any[] = [];
+  const cutoff = Date.now() - MAX_AGE_DAYS * 864e5;
+
+  // Paginate until we have enough, run out, or reach posts older than the cap.
+  for (let page = 0; page < 4 && url && out.length < MAX_POSTS; page++) {
+    const res = await fetch(url);
+    if (!res.ok) break;
+    const body = await res.json();
+    const batch = body.data ?? [];
+    out.push(...batch);
+    const oldest = batch[batch.length - 1]?.timestamp;
+    if (!body.paging?.next || (oldest && new Date(oldest).getTime() < cutoff)) break;
+    url = body.paging.next;
+  }
+
+  return out
+    .filter((m) => !m.timestamp || new Date(m.timestamp).getTime() >= cutoff)
+    .slice(0, MAX_POSTS);
+}
+
+/** Per-post insights are one call each, so they go out in bounded batches. */
+async function insightsFor(posts: any[], accessToken: string) {
+  const out: any[] = [];
+  for (let i = 0; i < posts.length; i += 10) {
+    const chunk = posts.slice(i, i + 10);
+    out.push(
+      ...(await Promise.all(chunk.map((p) => mediaInsights(p.id, accessToken).catch(() => null))))
+    );
+  }
+  return out;
+}
+
 export async function fetchStats(accessToken: string) {
   const profileRes = await fetch(
     `${GRAPH}/me?` +
@@ -157,18 +198,12 @@ export async function fetchStats(accessToken: string) {
   if (!profileRes.ok) throw new Error(`IG profile failed: ${await profileRes.text()}`);
   const profile = await profileRes.json();
 
-  const mediaRes = await fetch(
-    `${GRAPH}/me/media?` +
-      new URLSearchParams({
-        fields:
-          "id,caption,media_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count",
-        limit: "12",
-        access_token: accessToken,
-      })
-  );
-  const media = mediaRes.ok ? await mediaRes.json() : { data: [] };
+  // Enough history for the longest window the UI offers. "Last N posts" is not
+  // a time window: for an account that posts rarely, twelve posts reached back
+  // seven months and every aggregate silently covered that span.
+  const raw = await fetchAllMedia(accessToken);
 
-  const basePosts = (media.data ?? []).map((m: any) => ({
+  const basePosts = raw.map((m: any) => ({
     id: m.id,
     caption: m.caption ?? null,
     permalink: m.permalink ?? null,
@@ -180,7 +215,7 @@ export async function fetchStats(accessToken: string) {
   }));
 
   const [postInsights, account, demographics] = await Promise.all([
-    Promise.all(basePosts.map((p: any) => mediaInsights(p.id, accessToken).catch(() => null))),
+    insightsFor(basePosts, accessToken),
     accountInsights(accessToken).catch(() => null),
     followerDemographics(accessToken).catch(() => null),
   ]);

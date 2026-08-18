@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getInfluencerId } from "@/lib/auth";
 import { getReport } from "@/lib/report";
+import { parseWindow } from "@/lib/metrics";
 import CreatorView from "@/components/CreatorView";
 import TopBar from "@/components/TopBar";
 import { Caption } from "@/components/ui";
@@ -10,12 +11,13 @@ export const dynamic = "force-dynamic";
 export default async function MePage({
   searchParams,
 }: {
-  searchParams: { connected?: string; connect?: string };
+  searchParams: { connected?: string; connect?: string; janela?: string };
 }) {
   const id = getInfluencerId();
   if (!id) redirect("/login");
 
-  const report = await getReport(id);
+  const windowDays = parseWindow(searchParams.janela);
+  const report = await getReport(id, windowDays);
   if (!report) redirect("/login");
 
   const { connected } = report;
@@ -36,7 +38,7 @@ export default async function MePage({
           </div>
         )}
 
-        <CreatorView report={report} variant="self" />
+        <CreatorView report={report} variant="self" windowDays={windowDays} />
 
         {!allConnected && (
           <section className="section">

@@ -144,7 +144,21 @@ export type PlatformView = {
 
   summary: SummaryMetric[];
   postsPerWeek: number | null;
-  window: { days: number; posts: number } | null;
+  /**
+   * The period every aggregate on this view covers. It is a real date range,
+   * not "the last N posts" — that reached back seven months for an account that
+   * posts rarely, and reported it as "recent".
+   */
+  window: {
+    days: number;
+    posts: number;
+    from: string;
+    to: string;
+    /** Newest post we hold, so an empty window can say when they last posted. */
+    lastPostAt: string | null;
+  };
+  /** Lifetime likes across the whole account. TikTok reports it; Instagram doesn't. */
+  lifetimeLikes: number | null;
 
   /** Ordered by engagement. Neutral names on purpose — a post that reached more
    *  people is not a "worse" post, and a creator shouldn't read it that way. */
@@ -248,13 +262,14 @@ function toPosts(platform: Platform, stats: any, followers: number | null): Inte
   });
 }
 
-function cadenceOf(posts: Internal[]): { cadence: number | null; window: PlatformView["window"] } {
-  const times = posts
-    .map((p) => (p.postedAt ? new Date(p.postedAt).getTime() : null))
-    .filter((t): t is number => t != null && Number.isFinite(t));
-  if (times.length < 2) return { cadence: null, window: null };
-  const days = Math.max(1, (Math.max(...times) - Math.min(...times)) / 86_400_000);
-  return { cadence: (times.length / days) * 7, window: { days: Math.round(days), posts: times.length } };
+/**
+ * Cadence over the selected window, not over whatever span the posts happen to
+ * cover. Posting 5 times in 90 days is 0,4/semana; measuring it across the gap
+ * between the first and last of those posts would flatter it.
+ */
+function cadenceOver(posts: Internal[], windowDays: number): number | null {
+  if (!posts.length) return 0;
+  return (posts.length / windowDays) * 7;
 }
 
 const KIND_LABELS: Record<EngagementKind, string> = {
@@ -274,18 +289,35 @@ export type HistoryInput = {
   growthPct: number | null;
 };
 
+/** The periods the UI offers. 30 days is the default and the industry norm. */
+export const WINDOWS = [7, 30, 90, 365] as const;
+export const DEFAULT_WINDOW = 30;
+
 export function analyze(
   platform: Platform,
   stats: any,
-  history?: HistoryInput | null
+  history?: HistoryInput | null,
+  windowDays: number = DEFAULT_WINDOW
 ): PlatformView | null {
   if (!stats) return null;
 
   const isIg = platform === "instagram";
   const followers: number | null = stats.followers ?? null;
   const tier = tierFor(followers);
-  const posts = toPosts(platform, stats, followers);
-  const { cadence, window } = cadenceOf(posts);
+
+  const all = toPosts(platform, stats, followers);
+  const from = new Date(Date.now() - windowDays * 864e5);
+  const posts = all.filter((p) => p.postedAt && new Date(p.postedAt) >= from);
+
+  const dates = all.map((p) => p.postedAt).filter(Boolean).sort() as string[];
+  const window: PlatformView["window"] = {
+    days: windowDays,
+    posts: posts.length,
+    from: from.toISOString(),
+    to: new Date().toISOString(),
+    lastPostAt: dates.length ? dates[dates.length - 1] : null,
+  };
+  const cadence = cadenceOver(posts, windowDays);
 
   const typical = {
     views: median(posts.map((p) => p.views)),
@@ -355,9 +387,7 @@ export function analyze(
       score: scoreAt(cadence, CADENCE_ANCHORS),
       display: cadence == null ? DASH : `${cadence.toFixed(1)}/sem`,
       benchmark: "3/sem forte",
-      note: window
-        ? `${window.posts} posts nos últimos ${window.days} dias. Cadência é o que torna a entrega previsível quando uma campanha é fechada.`
-        : "Ainda não há posts datados suficientes para medir um ritmo.",
+      note: `${window.posts} posts nos últimos ${window.days} dias. Cadência é o que torna a entrega previsível quando uma campanha é fechada.`,
     },
   ];
 
@@ -444,6 +474,7 @@ export function analyze(
     content: { higher: ranked.slice(0, 4), lower: ranked.slice(-3) },
     typical,
     sendsPerReach,
+    lifetimeLikes: stats.likes_total ?? null,
     published: posts
       .filter((p) => p.postedAt)
       .map((p) => ({ at: p.postedAt!, thumbnailUrl: p.thumbnailUrl, caption: p.caption })),
@@ -554,4 +585,10 @@ export const PUBLI_RE = /#(publi|publicidade|ad|ads|paid|parceria|publipost)\b/i
 
 export function isPaid(post: Post): boolean {
   return PUBLI_RE.test(post.caption ?? "");
+}
+
+/** Reads the window off a URL param, refusing anything not on the menu. */
+export function parseWindow(raw: string | undefined): number {
+  const n = Number(raw);
+  return (WINDOWS as readonly number[]).includes(n) ? n : DEFAULT_WINDOW;
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { getReport } from "@/lib/report";
+import { parseWindow } from "@/lib/metrics";
 import CreatorView from "@/components/CreatorView";
 import TopBar from "@/components/TopBar";
 import AdminGate from "@/components/AdminGate";
@@ -10,7 +11,13 @@ import { ChevronRight } from "@/components/Icons";
 export const dynamic = "force-dynamic";
 
 /** Drill-down from the ranking. Staff only, checked on the server. */
-export default async function AdminCreatorPage({ params }: { params: { id: string } }) {
+export default async function AdminCreatorPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { janela?: string };
+}) {
   if (!isAdmin()) {
     return (
       <main className="auth">
@@ -23,7 +30,8 @@ export default async function AdminCreatorPage({ params }: { params: { id: strin
     );
   }
 
-  const report = await getReport(params.id);
+  const windowDays = parseWindow(searchParams.janela);
+  const report = await getReport(params.id, windowDays);
   if (!report) notFound();
 
   return (
@@ -41,7 +49,7 @@ export default async function AdminCreatorPage({ params }: { params: { id: strin
           Voltar ao ranking
         </Link>
 
-        <CreatorView report={report} variant="agency" />
+        <CreatorView report={report} variant="agency" windowDays={windowDays} />
 
         <div className="footer">
           <span>1043 AG · creator performance</span>
