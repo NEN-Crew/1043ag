@@ -492,6 +492,8 @@ a.rank-row:hover { background: rgba(22, 73, 214, 0.05); }
   padding: 4px 8px; font-size: 10px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap;
 }
+/* Solid fills only: a translucent badge disappears into whatever photo is
+   behind it, and these sit on top of arbitrary thumbnails. */
 .post-flag.viral { background: var(--cobalt); color: #fff; }
-.post-flag.high { background: rgba(22, 73, 214, 0.14); color: var(--cobalt); }
-.post-flag.low { background: var(--line); color: var(--ink-500); }
+.post-flag.high { background: var(--paper); color: var(--cobalt); }
+.post-flag.low { background: var(--paper); color: var(--ink-500); }
