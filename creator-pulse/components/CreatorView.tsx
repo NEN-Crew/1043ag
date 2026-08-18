@@ -49,6 +49,21 @@ function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
+/**
+ * A date range. The year appears only when the ends fall in different ones —
+ * without it a 12-month window reads "18/08 a 18/08", which looks like a single
+ * day rather than a year.
+ */
+function rangeLabel(from: string, to: string): string {
+  const a = new Date(from);
+  const b = new Date(to);
+  const withYear = (d: Date) =>
+    d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  return a.getFullYear() === b.getFullYear()
+    ? `${shortDate(from)} a ${shortDate(to)}`
+    : `${withYear(a)} a ${withYear(b)}`;
+}
+
 export default function CreatorView({ report, variant, windowDays }: Props) {
   const router = useRouter();
   const [active, setActive] = useState(report.platforms[0]?.platform ?? "instagram");
@@ -181,8 +196,7 @@ function EmptyWindow({ view }: { view: PlatformView }) {
         Nenhum post no período
       </div>
       <span style={{ color: "var(--ink)", fontSize: 13 }}>
-        {view.label} não teve publicações entre {shortDate(view.window.from)} e{" "}
-        {shortDate(view.window.to)}.{" "}
+        {view.label} não teve publicações entre {rangeLabel(view.window.from, view.window.to)}.{" "}
         {view.window.lastPostAt
           ? `O último post foi em ${new Date(view.window.lastPostAt).toLocaleDateString("pt-BR", {
               day: "2-digit",
@@ -303,7 +317,7 @@ function Engagement({ view }: { view: PlatformView }) {
     <Section
       index={1}
       first
-      caption={`Engajamento · ${view.label} · ${shortDate(view.window.from)} a ${shortDate(view.window.to)}`}
+      caption={`Engajamento · ${view.label} · ${rangeLabel(view.window.from, view.window.to)}`}
       title="engajamento"
     >
       {view.window.posts === 0 && <EmptyWindow view={view} />}
@@ -391,7 +405,7 @@ function Engagement({ view }: { view: PlatformView }) {
           <div style={{ marginBottom: 12 }}>
             <Eyebrow>
               Tipos de engajamento · soma dos {view.window.posts} posts ·{" "}
-              {shortDate(view.window.from)} a {shortDate(view.window.to)}
+              {rangeLabel(view.window.from, view.window.to)}
             </Eyebrow>
           </div>
           <div
