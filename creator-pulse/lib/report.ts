@@ -122,18 +122,23 @@ export async function getReport(
  * the unit of comparison, not the person, and the network filter is what makes
  * the ranking like-for-like.
  */
-export async function getRoster(windowDays: number = DEFAULT_WINDOW): Promise<AgencyRoster> {
+/** Follower growth over the window lives on the summary strip; read it from there. */
+export function growthOf(v: PlatformView): number | null {
+  return v.summary.find((m) => m.key === "growth")?.value ?? null;
+}
+
+/**
+ * Every creator, analysed, in a fixed number of queries. The ranking and the
+ * CSV export both start here so they can never disagree about a number.
+ */
+export async function getAllReports(
+  windowDays: number = DEFAULT_WINDOW
+): Promise<{ reports: CreatorReport[]; pending: AgencyRoster["pending"] }> {
   const influencers = (await sql`
     select id, name, email from influencers order by created_at desc
   `) as any[];
 
-  if (!influencers.length) {
-    return {
-      meta: { creatorCount: 0, connectedCount: 0, avgEr: null, totalReach: null, lastUpdatedAt: null },
-      creators: [],
-      pending: [],
-    };
-  }
+  if (!influencers.length) return { reports: [], pending: [] };
 
   const ids = influencers.map((i) => i.id);
   const [conns, igRows, ttRows, history] = await Promise.all([
@@ -152,7 +157,7 @@ export async function getRoster(windowDays: number = DEFAULT_WINDOW): Promise<Ag
   const igBy = new Map((igRows as any[]).map((r) => [r.influencer_id, r]));
   const ttBy = new Map((ttRows as any[]).map((r) => [r.influencer_id, r]));
 
-  const creators: RosterEntry[] = [];
+  const reports: CreatorReport[] = [];
   const pending: AgencyRoster["pending"] = [];
 
   for (const inf of influencers) {
@@ -161,18 +166,37 @@ export async function getRoster(windowDays: number = DEFAULT_WINDOW): Promise<Ag
       pending.push({ id: inf.id, name: inf.name, email: inf.email });
       continue;
     }
-    const hist = history.get(inf.id) ?? emptyHistory;
-    const report = assemble(
-      { id: inf.id, name: inf.name, email: inf.email },
-      connected,
-      igBy.get(inf.id) ?? null,
-      ttBy.get(inf.id) ?? null,
-      hist,
-      windowDays
+    reports.push(
+      assemble(
+        { id: inf.id, name: inf.name, email: inf.email },
+        connected,
+        igBy.get(inf.id) ?? null,
+        ttBy.get(inf.id) ?? null,
+        history.get(inf.id) ?? emptyHistory,
+        windowDays
+      )
     );
+  }
 
+  return { reports, pending };
+}
+
+/**
+ * The whole roster, ranked.
+ *
+ * A creator active on both platforms produces one ranking row per platform:
+ * comparing an Instagram ER against a TikTok ER is meaningless, so the row is
+ * the unit of comparison, not the person, and the network filter is what makes
+ * the ranking like-for-like.
+ */
+export async function getRoster(windowDays: number = DEFAULT_WINDOW): Promise<AgencyRoster> {
+  const { reports, pending } = await getAllReports(windowDays);
+  const creators: RosterEntry[] = [];
+
+  for (const report of reports) {
+    const inf = report.influencer;
     for (const v of report.platforms) {
-      const h = v.platform === "instagram" ? hist.instagram : hist.tiktok;
+      const growth = growthOf(v);
       creators.push({
         creatorId: inf.id,
         name: inf.name,
@@ -182,10 +206,10 @@ export async function getRoster(windowDays: number = DEFAULT_WINDOW): Promise<Ag
         platform: v.platform,
         platformLabel: v.label,
         er: v.engagement.rate,
-        erDelta: h.erDelta,
+        erDelta: v.engagement.delta,
         followers: v.followers,
-        growth: h.growthPct,
-        growthDelta: delta(h.growthPct, "pct"),
+        growth,
+        growthDelta: delta(growth, "pct"),
         verdict: v.engagement.verdict ?? verdictFor(v.score),
         updatedAt: v.updatedAt,
       });
@@ -197,8 +221,8 @@ export async function getRoster(windowDays: number = DEFAULT_WINDOW): Promise<Ag
 
   return {
     meta: {
-      creatorCount: influencers.length,
-      connectedCount: influencers.length - pending.length,
+      creatorCount: reports.length + pending.length,
+      connectedCount: reports.length,
       avgEr: ers.length ? ers.reduce((a, b) => a + b, 0) / ers.length : null,
       totalReach: reach.length ? reach.reduce((a, b) => a + b, 0) : null,
       lastUpdatedAt:

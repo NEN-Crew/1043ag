@@ -21,13 +21,25 @@ export function getInfluencerId(): string | null {
   return c ? unsign(c) : null;
 }
 
-export function setAdminSession() {
-  cookies().set(ADM, sign("admin"), cookieOpts);
+/**
+ * Two ways in: a named admin account (id from the admins table) or the shared
+ * agency password, which signs in as "shared". Both carry the same rights.
+ */
+export function setAdminSession(adminId: string = "shared") {
+  cookies().set(ADM, sign(`admin:${adminId}`), cookieOpts);
+}
+
+export function getAdminId(): string | null {
+  const c = cookies().get(ADM)?.value;
+  const v = c ? unsign(c) : null;
+  if (!v) return null;
+  // "admin" is the pre-accounts cookie value; still honoured until it expires.
+  if (v === "admin") return "shared";
+  return v.startsWith("admin:") ? v.slice("admin:".length) : null;
 }
 
 export function isAdmin(): boolean {
-  const c = cookies().get(ADM)?.value;
-  return c ? unsign(c) === "admin" : false;
+  return getAdminId() != null;
 }
 
 export function clearSessions() {

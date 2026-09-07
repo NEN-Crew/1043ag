@@ -16,8 +16,10 @@ export default function LoginForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    if (res.ok) window.location.href = "/me";
-    else {
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      window.location.href = data.redirect ?? "/me";
+    } else {
       setError((await res.json()).error ?? "Não foi possível entrar");
       setBusy(false);
     }

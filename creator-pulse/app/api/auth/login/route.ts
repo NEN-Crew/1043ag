@@ -1,16 +1,32 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { verifyPassword } from "@/lib/crypto";
-import { setInfluencerSession } from "@/lib/auth";
+import { clearSessions, setAdminSession, setInfluencerSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+/**
+ * One login form for everyone. Creators land on /me; agency staff (rows in
+ * `admins`) land on /admin. The response says where, so the form doesn't have
+ * to know which kind of account it just signed in.
+ */
 export async function POST(req: Request) {
   const { email, password } = await req.json();
-  const row = (await sql`select id, password_hash from influencers where email = ${email}`)[0] as any;
-  if (!row || !verifyPassword(password ?? "", row.password_hash)) {
-    return NextResponse.json({ error: "Wrong email or password" }, { status: 401 });
+  const needle = String(email ?? "").trim().toLowerCase();
+
+  const inf = (await sql`select id, password_hash from influencers where lower(email) = ${needle}`)[0] as any;
+  if (inf && verifyPassword(password ?? "", inf.password_hash)) {
+    clearSessions();
+    setInfluencerSession(inf.id);
+    return NextResponse.json({ ok: true, redirect: "/me" });
   }
-  setInfluencerSession(row.id);
-  return NextResponse.json({ ok: true });
+
+  const adm = (await sql`select id, password_hash from admins where lower(email) = ${needle}`)[0] as any;
+  if (adm && verifyPassword(password ?? "", adm.password_hash)) {
+    clearSessions();
+    setAdminSession(adm.id);
+    return NextResponse.json({ ok: true, redirect: "/admin" });
+  }
+
+  return NextResponse.json({ error: "E-mail ou senha incorretos" }, { status: 401 });
 }

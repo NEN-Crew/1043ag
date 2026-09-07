@@ -25,6 +25,10 @@ export default async function AdminCreatorPage({
           <div className="wordmark" style={{ marginBottom: 6 }}>1043 AG</div>
           <p className="caption" style={{ marginBottom: 24 }}>Visão agência</p>
           <AdminGate />
+          <p className="caption" style={{ textAlign: "center", marginTop: 20, fontSize: 11 }}>
+            Tem uma conta de equipe?{" "}
+            <a href="/login" style={{ textDecoration: "underline" }}>Entre com seu e-mail</a>
+          </p>
         </div>
       </main>
     );

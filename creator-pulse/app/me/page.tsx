@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getInfluencerId } from "@/lib/auth";
+import { getInfluencerId, isAdmin } from "@/lib/auth";
 import { getReport } from "@/lib/report";
 import { parseWindow } from "@/lib/metrics";
 import CreatorView from "@/components/CreatorView";
@@ -14,7 +14,7 @@ export default async function MePage({
   searchParams: { connected?: string; connect?: string; janela?: string };
 }) {
   const id = getInfluencerId();
-  if (!id) redirect("/login");
+  if (!id) redirect(isAdmin() ? "/admin" : "/login");
 
   const windowDays = parseWindow(searchParams.janela);
   const report = await getReport(id, windowDays);
