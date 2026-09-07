@@ -202,7 +202,17 @@ export type PlatformView = {
    * content behind it. The line itself is a rolling median across recent posts,
    * not one post — this says what landed that day, it doesn't relabel the point.
    */
-  published: { at: string; thumbnailUrl: string | null; caption: string; formatLabel: string }[];
+  published: {
+    at: string;
+    thumbnailUrl: string | null;
+    caption: string;
+    formatLabel: string;
+    /** The post's own numbers, so hovering a day answers "why that day?". */
+    er: number | null;
+    likes: number | null;
+    comments: number | null;
+    standout: Standout;
+  }[];
 
   score: number | null;
   scoreVerdict: Verdict | null;
@@ -614,6 +624,12 @@ export function analyze(
         thumbnailUrl: p.thumbnailUrl,
         caption: p.caption,
         formatLabel: p.formatLabel,
+        // The standout label is decided over the whole window in classify(),
+        // so it is read off the classified list rather than recomputed here.
+        er: p.er,
+        likes: p.likes,
+        comments: p.comments,
+        standout: content.all.find((c) => c.id === p.id)?.standout ?? null,
       })),
 
     score,

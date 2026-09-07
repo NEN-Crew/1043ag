@@ -1,6 +1,9 @@
 "use client";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { TrendPoint } from "@/lib/metrics";
+import type { PlatformView, TrendPoint } from "@/lib/metrics";
+import { formatCount, formatRate } from "@/lib/format";
+
+type Marker = PlatformView["published"][number];
 
 type Props = {
   points: TrendPoint[];
@@ -16,7 +19,7 @@ type Props = {
   color?: string;
   height?: number;
   /** Content published on a given day, surfaced in that day's tooltip. */
-  markers?: { at: string; thumbnailUrl: string | null; caption: string; formatLabel?: string }[];
+  markers?: Marker[];
   /**
    * Smallest y-range the axis is allowed to show. Without it the axis rescales
    * to whatever the data happens to span, and a 0,02 point wiggle is drawn as
@@ -42,7 +45,7 @@ export default function Chart({
 
   const day = (iso: string) => iso.slice(0, 10);
   const publishedBy = useMemo(() => {
-    const m = new Map<string, { thumbnailUrl: string | null; caption: string; formatLabel?: string }[]>();
+    const m = new Map<string, Marker[]>();
     for (const k of markers ?? []) m.set(day(k.at), [...(m.get(day(k.at)) ?? []), k]);
     return m;
   }, [markers]);
@@ -91,6 +94,12 @@ export default function Chart({
   }, [points, width, height, minSpan]);
 
   const shown = active != null ? points[active] : null;
+  const dayPosts = shown ? publishedBy.get(day(shown.at)) ?? [] : [];
+  /** Days the reader can actually aim at. Drives the hint below the chart. */
+  const marked = useMemo(
+    () => points.filter((p) => publishedBy.has(day(p.at))).length,
+    [points, publishedBy]
+  );
 
   function nearest(clientX: number) {
     const el = wrap.current;
@@ -233,6 +242,23 @@ export default function Chart({
               )}
             </g>
           ))}
+
+          {/* A tick under every day that carries a post. Without it the tooltip's
+              content is undiscoverable: on an account that publishes six times a
+              month, five hovers out of six land on a day with nothing to show,
+              and the feature reads as missing. */}
+          {points.map((p, i) =>
+            publishedBy.has(day(p.at)) ? (
+              <rect
+                key={`pub-${p.at}`}
+                x={geom.x(i) - 0.5}
+                y={PAD.top + geom.plotH + 4}
+                width="1"
+                height={active === i ? 9 : 6}
+                fill="var(--ink)"
+              />
+            ) : null
+          )}
         </svg>
       )}
 
@@ -246,42 +272,82 @@ export default function Chart({
             transform: `translateX(${geom.x(active!) > width / 2 ? "calc(-100% - 10px)" : "10px"})`,
             background: "var(--ink)",
             color: "#e5e5e5",
-            padding: "8px 10px",
+            padding: "10px 12px",
             pointerEvents: "none",
-            whiteSpace: "nowrap",
+            // A day with a post needs room for a thumbnail and a caption; a day
+            // without one should stay as small as its two lines.
+            whiteSpace: dayPosts.length ? "normal" : "nowrap",
+            // Never wider than the phone it's being read on.
+            width: dayPosts.length ? "min(326px, calc(100vw - 56px))" : "auto",
             zIndex: 2,
           }}
         >
-          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.1 }}>{detail(shown.value)}</div>
-          <div style={{ fontSize: 11, color: "rgba(229,229,229,0.72)", marginTop: 3 }}>
+          {/* The rate is the headline of the whole screen; in here it wears the
+              same serif it wears out there, rather than shrinking to a label. */}
+          <div
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 30,
+              lineHeight: 0.95,
+              letterSpacing: "-0.01em",
+              color: "#fff",
+            }}
+          >
+            {detail(shown.value)}
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "rgba(229,229,229,0.6)",
+              marginTop: 5,
+            }}
+          >
             {fullDateLabel(shown.at)}
           </div>
-          {(publishedBy.get(day(shown.at)) ?? []).slice(0, 2).map((k, i) => (
+          {dayPosts.slice(0, 2).map((k, i) => (
             <div
               key={i}
               style={{
-                display: "flex", alignItems: "center", gap: 11, marginTop: 10,
-                paddingTop: 10, borderTop: "1px solid rgba(229,229,229,0.22)", maxWidth: 300,
+                display: "flex", gap: 12, marginTop: 11,
+                paddingTop: 11, borderTop: "1px solid rgba(229,229,229,0.22)",
               }}
             >
               {k.thumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={k.thumbnailUrl} alt="" width={64} height={64} style={{ objectFit: "cover", flex: "none" }} />
+                <img src={k.thumbnailUrl} alt="" width={72} height={72} style={{ objectFit: "cover", flex: "none" }} />
               ) : (
-                <span style={{ width: 64, height: 64, background: "rgba(229,229,229,0.18)", flex: "none" }} />
+                <span style={{ width: 72, height: 72, background: "rgba(229,229,229,0.18)", flex: "none" }} />
               )}
-              <span style={{ minWidth: 0 }}>
-                {k.formatLabel && (
+              <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                   <span
                     style={{
-                      display: "inline-block", marginBottom: 4, padding: "2px 6px",
-                      background: "rgba(229,229,229,0.16)", fontSize: 9.5, fontWeight: 700,
-                      letterSpacing: "0.08em", textTransform: "uppercase",
+                      padding: "2px 6px", background: "rgba(229,229,229,0.16)", fontSize: 9,
+                      fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
                     }}
                   >
                     {k.formatLabel}
                   </span>
-                )}
+                  {/* Only the labels that credit the post. "Abaixo da média" is
+                      information the post grid already carries; stamping it on a
+                      hover the creator didn't ask for is a different act. */}
+                  {(k.standout === "viral" || k.standout === "high") && (
+                    <span
+                      style={{
+                        padding: "2px 6px", fontSize: 9, fontWeight: 700,
+                        letterSpacing: "0.08em", textTransform: "uppercase",
+                        background: k.standout === "viral" ? "var(--cobalt)" : "transparent",
+                        color: "#fff",
+                        boxShadow: k.standout === "high" ? "inset 0 0 0 1px rgba(229,229,229,0.5)" : undefined,
+                      }}
+                    >
+                      {k.standout === "viral" ? "Viral" : "Acima da média"}
+                    </span>
+                  )}
+                </span>
                 <span
                   style={{
                     display: "-webkit-box", fontSize: 11.5, lineHeight: 1.4,
@@ -291,10 +357,36 @@ export default function Chart({
                 >
                   {k.caption || "publicado nesse dia"}
                 </span>
+                <span style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11 }}>
+                  {k.likes != null && (
+                    <span style={{ color: "rgba(229,229,229,0.6)" }}>
+                      <b style={{ color: "#fff" }}>{formatCount(k.likes)}</b> curtidas
+                    </span>
+                  )}
+                  {k.comments != null && (
+                    <span style={{ color: "rgba(229,229,229,0.6)" }}>
+                      <b style={{ color: "#fff" }}>{formatCount(k.comments)}</b> coment.
+                    </span>
+                  )}
+                  {k.er != null && (
+                    <span style={{ color: "rgba(229,229,229,0.6)" }}>
+                      ER <b style={{ color: "#fff" }}>{formatRate(k.er, 2)}%</b>
+                    </span>
+                  )}
+                </span>
               </span>
             </div>
           ))}
         </div>
+      )}
+
+      {/* The ticks only work if the reader knows what they are. */}
+      {marked > 0 && (
+        <p className="caption" style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ display: "inline-block", width: 1, height: 10, background: "var(--ink)", flex: "none" }} />
+          {marked === 1 ? "1 dia com publicação" : `${marked} dias com publicação`} · passe o
+          mouse para ver o post
+        </p>
       )}
     </div>
   );
