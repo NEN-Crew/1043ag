@@ -6,7 +6,9 @@ import AdminGate from "@/components/AdminGate";
 import CreateInfluencer from "@/components/CreateInfluencer";
 import Ranking from "@/components/Ranking";
 import TopBar from "@/components/TopBar";
+import ExportButtons from "@/components/ExportButtons";
 import { Eyebrow } from "@/components/ui";
+import { DEFAULT_WINDOW } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,10 @@ export default async function AdminPage() {
           <div className="wordmark" style={{ marginBottom: 6 }}>1043 AG</div>
           <p className="caption" style={{ marginBottom: 24 }}>Visão agência</p>
           <AdminGate />
+          <p className="caption" style={{ textAlign: "center", marginTop: 20, fontSize: 11 }}>
+            Tem uma conta de equipe?{" "}
+            <a href="/login" style={{ textDecoration: "underline" }}>Entre com seu e-mail</a>
+          </p>
         </div>
       </main>
     );
@@ -40,6 +46,7 @@ export default async function AdminPage() {
               <p style={{ fontSize: 13, color: "rgba(229,229,229,0.82)", margin: 0 }}>
                 Todos os creators da 1043, ranqueados por engajamento.
               </p>
+              {meta.connectedCount > 0 && <ExportButtons windowDays={DEFAULT_WINDOW} />}
             </div>
             <div className="field-stats">
               <div>

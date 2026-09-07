@@ -12,9 +12,10 @@ Built to be simple: one Next.js app, one Postgres database, deploys to Vercel.
 - **Creators** log in (with an email + password you create for them) at `/login`,
   land on `/me`, and click **Connect Instagram / Connect TikTok**. After that
   they see their own numbers.
-- **The agency** opens `/admin` (one shared password), gets a sortable roster of
-  every creator, and can open any of them for the full breakdown. The agency view
-  also creates creator accounts.
+- **The agency** logs in at the same `/login` with a staff account (or opens
+  `/admin` with the shared password), gets a sortable roster of every creator
+  ranked by engagement, and can open any of them for the full breakdown. The
+  agency view also creates creator accounts and exports the whole roster as CSV.
 - Numbers refresh **daily** via Vercel Cron. Anyone can also pull them on demand:
   the agency without limit, a creator once every 12h.
 
@@ -51,6 +52,10 @@ Two screens:
 - `/me` — the creator's own report.
 - `/admin` — the agency roster, ranked. Staff only, enforced server-side.
 - `/admin/[id]` — drill-down into one creator, same report plus media value.
+- `/api/admin/export?tipo=contas|posts&janela=30` — CSV download of every account
+  (one row per creator × network, ranked like the screen) or every post in the
+  window. Semicolon-separated, decimal comma, UTF-8 BOM: opens clean in Excel
+  and Sheets in pt-BR.
 
 The roster ranks one row **per account**, not per person: comparing an Instagram ER
 against a TikTok ER is meaningless, so the network filter is what produces a
@@ -222,17 +227,31 @@ aren't shown for TikTok — that's expected, not a bug.
 2. The creator logs in at `/login`, connects their Instagram and/or TikTok.
 3. Back in `/admin`, click **Refresh** on that creator to pull fresh numbers
    anytime you need them.
+4. **Exportar relatório** on the agency masthead downloads the ranking as a
+   spreadsheet; **Exportar posts** downloads every post behind it.
+
+### Staff accounts
+
+Agency staff get their own login instead of the shared password:
+
+```bash
+npm run admin:create -- "Nome" nome@1043.ag
+```
+
+It prints the password once. Run it again with the same e-mail to issue a new
+password. Staff log in at `/login` and land on `/admin`. The shared
+`ADMIN_PASSWORD` keeps working as a fallback.
 
 ## What's inside
 
 ```
 app/
-  login/            creator login
+  login/            creator + staff login
   me/               creator's own numbers + connect buttons
-  admin/            agency view (password) — roster, create, refresh
+  admin/            agency view — roster, create, refresh, export
   api/
-    auth/           login / logout / admin password
-    admin/          create creator
+    auth/           login / logout / shared admin password
+    admin/          create creator, export CSV
     report/[id]     GET a creator's numbers (IG + TikTok, separated)
     refresh/[id]    POST pull fresh numbers (admin only)
     connect/        OAuth start + callback for each platform
@@ -244,6 +263,7 @@ lib/
   metrics.ts        raw stats -> the view model the screens consume
   history.ts        follower + engagement trends from the snapshot tables
   report.ts         one creator / the whole roster / refresh
+  export.ts         the roster and its posts as CSV
   crypto.ts         password hashing, token encryption, signed cookies
   auth.ts           session cookies
   format.ts         pt-BR number, date and delta formatting
@@ -253,8 +273,9 @@ components/
   CreatorView.tsx   masthead + sections 01–06
   Ranking.tsx       the agency roster, filtered and sorted
   TopBar.tsx        shared chrome
-schema.sql          the six tables
+schema.sql          the seven tables
 scripts/setup-db.ts npm run db:setup
+scripts/create-admin.ts npm run admin:create
 ```
 
 ### Not built (and why)

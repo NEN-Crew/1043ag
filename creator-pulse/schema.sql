@@ -88,3 +88,14 @@ create table if not exists tiktok_stats_history (
 );
 create index if not exists tiktok_stats_history_influencer_idx
   on tiktok_stats_history (influencer_id, captured_at);
+
+-- Agency staff. An admin logs in at /login like a creator does, but lands on
+-- /admin and sees the whole roster. Kept apart from influencers so an admin
+-- never shows up in the ranking as a creator with nothing connected.
+create table if not exists admins (
+  id            text primary key,
+  name          text not null,
+  email         text unique not null,
+  password_hash text not null,
+  created_at    timestamptz not null default now()
+);
