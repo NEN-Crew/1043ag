@@ -1,4 +1,6 @@
 // Instagram API with Instagram Login (host graph.instagram.com).
+import { POST_CAP } from "./metrics";
+
 const AUTH = "https://api.instagram.com";
 const GRAPH = "https://graph.instagram.com";
 const SCOPES = "instagram_business_basic,instagram_business_manage_insights";
@@ -144,7 +146,7 @@ async function followerDemographics(accessToken: string) {
 }
 
 /** Caps: enough to cover a 12-month window without unbounded work. */
-const MAX_POSTS = 60;
+const MAX_POSTS = POST_CAP;
 const MAX_AGE_DAYS = 400;
 
 async function fetchAllMedia(accessToken: string): Promise<any[]> {

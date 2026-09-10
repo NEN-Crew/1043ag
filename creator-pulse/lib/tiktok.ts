@@ -1,4 +1,6 @@
 // TikTok Login Kit + Display API (host open.tiktokapis.com).
+import { POST_CAP } from "./metrics";
+
 const AUTH = "https://www.tiktok.com/v2/auth/authorize/";
 const API = "https://open.tiktokapis.com";
 const SCOPES = "user.info.basic,user.info.profile,user.info.stats,video.list";
@@ -62,7 +64,7 @@ export function refreshToken(refresh: string) {
 }
 
 /** Same caps as Instagram: enough for a 12-month window, bounded work. */
-const MAX_VIDEOS = 60;
+const MAX_VIDEOS = POST_CAP;
 const MAX_AGE_DAYS = 400;
 
 async function fetchAllVideos(accessToken: string): Promise<any[]> {

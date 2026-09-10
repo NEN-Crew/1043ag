@@ -15,6 +15,7 @@ import {
 } from "@/lib/format";
 import { BarRow, Caption, DeltaTag, Eyebrow, Section, Sparkline, Stat, VerdictChip } from "./ui";
 import Chart from "./Chart";
+import PeriodChart, { type PeriodMetric } from "./PeriodChart";
 import {
   Calendar,
   ChevronDown,
@@ -366,6 +367,12 @@ function Engagement({ view }: { view: PlatformView }) {
       </div>
       )}
 
+      {view.window.posts > 0 && (
+        <section className="block-chart">
+          <PeriodBlock view={view} />
+        </section>
+      )}
+
       <section className="block-chart">
         <div style={{ marginBottom: 14 }}>
           <Eyebrow>Engajamento dia a dia</Eyebrow>
@@ -430,6 +437,85 @@ function Engagement({ view }: { view: PlatformView }) {
         </div>
       )}
     </Section>
+  );
+}
+
+/**
+ * The window cut into periods. This is the chart that answers "why is 30 days
+ * excelente and 12 months bom": each column is the headline recomputed over
+ * just the posts of that period, so the reader sees which months carried the
+ * year and which dragged it. The daily curve below needs snapshots to exist;
+ * this one only needs publish dates, so it's there from the first refresh.
+ */
+function PeriodBlock({ view }: { view: PlatformView }) {
+  const [metric, setMetric] = useState<PeriodMetric>("er");
+  const s = view.periods;
+  const reachLabel = view.platform === "instagram" ? "Alcance" : "Views";
+
+  const METRICS: { key: PeriodMetric; label: string }[] = [
+    { key: "er", label: "ER" },
+    { key: "reach", label: reachLabel },
+    { key: "interactions", label: "Reações" },
+  ];
+
+  const unitLabel = s?.unit === "week" ? "semana a semana" : "mês a mês";
+  const since = s?.cappedSince
+    ? new Date(s.cappedSince).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    : null;
+
+  return (
+    <>
+      <div
+        style={{
+          display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+          gap: 16, flexWrap: "wrap", marginBottom: 14,
+        }}
+      >
+        <div>
+          <Eyebrow>Desempenho por período{s ? ` · ${unitLabel}` : ""}</Eyebrow>
+          <Caption style={{ marginTop: 6, maxWidth: 560 }}>
+            {metric === "er"
+              ? "Cada coluna é o ER dos posts publicados naquele período, na mesma conta do número grande acima."
+              : metric === "reach"
+              ? `${reachLabel} de um post típico de cada período, pela mediana.`
+              : "Reações de um post típico de cada período, pela mediana: curtidas, comentários e envios."}
+          </Caption>
+        </div>
+        {s && (
+          <div className="segbox" role="tablist" aria-label="Métrica por período">
+            {METRICS.map((m) => (
+              <button
+                key={m.key}
+                role="tab"
+                aria-selected={metric === m.key}
+                className="seg"
+                onClick={() => setMetric(m.key)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {s ? (
+        <>
+          <PeriodChart series={s} metric={metric} reachLabel={reachLabel} />
+          {since && (
+            <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <Info size={13} />
+              <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--ink-500)" }}>
+                Cobre os {view.content.all.length} posts mais recentes, publicados a partir de{" "}
+                <b style={{ color: "var(--ink)" }}>{since}</b>. Períodos anteriores não estão no
+                relatório, não é que não houve posts.
+              </span>
+            </div>
+          )}
+        </>
+      ) : (
+        <Caption>Sete dias não dão períodos para comparar. Amplie para 30 dias ou mais.</Caption>
+      )}
+    </>
   );
 }
 

@@ -102,6 +102,57 @@ export type Post = {
 /** null = inside the account's normal range, and deliberately unlabelled. */
 export type Standout = "viral" | "high" | "low" | null;
 
+/**
+ * How many posts a platform fetch holds at most. Lives here rather than in the
+ * two fetchers because the period chart has to know it: on an account that
+ * publishes daily, 60 posts is two months, and a twelve-month chart that drew
+ * ten empty months before them would be claiming the creator didn't post.
+ */
+export const POST_CAP = 60;
+
+export type PeriodUnit = "month" | "week";
+
+/** One column of the period chart: every post published in that span, aggregated. */
+export type PeriodPoint = {
+  key: string;
+  /** Axis label: "jul", "jan/26", or "01/07" for a week. */
+  label: string;
+  /** Tooltip heading: "julho de 2026", "semana de 01/07 a 07/07". */
+  title: string;
+  from: string;
+  to: string;
+  posts: number;
+  /** The headline formula, over this period's posts alone. */
+  er: number | null;
+  /** Typical views (TikTok) or reach (Instagram) of a post in the period. */
+  reach: number | null;
+  /** Typical interactions per post in the period. */
+  interactions: number | null;
+  /** The period hasn't ended, so its newest posts are still collecting reactions. */
+  partial: boolean;
+  /** Highest-ER post of the period, so the tooltip can show what carried it. */
+  top: {
+    thumbnailUrl: string | null;
+    caption: string;
+    formatLabel: string;
+    er: number | null;
+    permalink: string | null;
+  } | null;
+};
+
+export type PeriodSeries = {
+  unit: PeriodUnit;
+  /** Oldest→newest, one per period, including periods with no posts. */
+  points: PeriodPoint[];
+  /**
+   * Set when the fetch cap cut the history short: the series starts at the
+   * oldest post we hold instead of at the window's start, and says so.
+   */
+  cappedSince: string | null;
+  /** The engagement band this account is graded against, drawn behind the columns. */
+  band: [number, number];
+};
+
 export type EngagementKind = "likes" | "comments" | "saves" | "shares";
 
 export type BreakdownStat = { kind: EngagementKind; label: string; count: number };
@@ -197,6 +248,13 @@ export type PlatformView = {
   typical: { views: number | null; reach: number | null; likes: number | null; comments: number | null };
   /** (saves + shares) ÷ reach. Instagram only — the distribution signal. */
   sendsPerReach: number | null;
+  /**
+   * The window cut into calendar periods, each aggregated on its own. Needs no
+   * snapshot history — a post's publish date is enough — so it works from the
+   * first refresh, where the daily curve takes weeks to draw. Null on the
+   * 7-day window, which has nothing to split.
+   */
+  periods: PeriodSeries | null;
   /**
    * What was published on each day, so a point on the daily chart can show the
    * content behind it. The line itself is a rolling median across recent posts,
@@ -335,6 +393,127 @@ function cadenceOver(posts: Internal[], windowDays: number): number | null {
   return (posts.length / windowDays) * 7;
 }
 
+/**
+ * The headline rate: the median post's interactions over the platform's
+ * denominator. The period chart calls this on each period's posts, so a column
+ * is exactly what the headline would say for that period, never a second
+ * formula wearing the same name.
+ */
+function rateOf(items: Internal[], isIg: boolean, followers: number | null): number | null {
+  const typicalInteractions = median(items.map((p) => p.interactions));
+  return isIg
+    ? ratio(typicalInteractions, followers)
+    : ratio(typicalInteractions, median(items.map((p) => p.views)));
+}
+
+const DAY = 864e5;
+const utc = (t: number) => new Date(t);
+const startOfMonth = (t: number) => Date.UTC(utc(t).getUTCFullYear(), utc(t).getUTCMonth(), 1);
+const nextMonth = (t: number) => Date.UTC(utc(t).getUTCFullYear(), utc(t).getUTCMonth() + 1, 1);
+// Weeks start on Monday.
+const startOfWeek = (t: number) => {
+  const d = utc(t);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+};
+const nextWeek = (t: number) => t + 7 * DAY;
+
+// Buckets are cut in UTC, the same clock the daily markers use, and the labels
+// are rendered in UTC too so a column can never be titled a month it isn't.
+const fmt = (t: number, opts: Intl.DateTimeFormatOptions) =>
+  new Date(t).toLocaleDateString("pt-BR", { ...opts, timeZone: "UTC" });
+const monthShort = (t: number) => fmt(t, { month: "short" }).replace(".", "");
+const monthLong = (t: number) => fmt(t, { month: "long", year: "numeric" });
+const dayMonth = (t: number) => fmt(t, { day: "2-digit", month: "2-digit" });
+
+/**
+ * Cuts the window into calendar periods and aggregates each on its own.
+ *
+ * Weeks for a 30-day window, months beyond that. Every period in the span is
+ * emitted, empty ones included: a gap is a fact about the creator's cadence
+ * and deserves its slot. The one exception is the fetch cap — when we hold the
+ * newest 60 posts and the oldest of them is younger than the window, the
+ * periods before it are unknown rather than empty, and the series starts there.
+ */
+function periodSeries(
+  all: Internal[],
+  posts: Internal[],
+  isIg: boolean,
+  followers: number | null,
+  windowDays: number,
+  from: Date,
+  band: [number, number]
+): PeriodSeries | null {
+  if (windowDays < 30) return null;
+  const unit: PeriodUnit = windowDays <= 30 ? "week" : "month";
+  const now = Date.now();
+
+  const held = all.map((p) => Date.parse(p.postedAt ?? "")).filter(Number.isFinite);
+  const oldestHeld = held.length ? Math.min(...held) : null;
+  const capped = all.length >= POST_CAP && oldestHeld != null && oldestHeld > from.getTime();
+  const start = capped ? oldestHeld! : from.getTime();
+
+  const floor = unit === "month" ? startOfMonth : startOfWeek;
+  const next = unit === "month" ? nextMonth : nextWeek;
+
+  const points: PeriodPoint[] = [];
+  for (let t = floor(start); t <= now; t = next(t)) {
+    const end = next(t);
+    // The first and last periods are clipped by the window and by today.
+    const lo = Math.max(t, start);
+    const hi = Math.min(end, now);
+    const items = posts.filter((p) => {
+      const at = Date.parse(p.postedAt ?? "");
+      return at >= t && at < end;
+    });
+    const top = items.filter((p) => p.er != null).sort((a, b) => b.er! - a.er!)[0] ?? null;
+
+    const title =
+      unit === "month"
+        ? `${monthLong(t)}${lo > t ? ` · desde ${dayMonth(lo)}` : ""}`
+        : `semana de ${dayMonth(lo)} a ${dayMonth(hi - 1)}`;
+
+    points.push({
+      key: `${unit}:${new Date(t).toISOString().slice(0, 10)}`,
+      // A week is labelled by its first day inside the window, so the axis
+      // and the tooltip name the same date.
+      label: unit === "month" ? monthShort(t) : dayMonth(lo),
+      title,
+      from: new Date(lo).toISOString(),
+      to: new Date(hi).toISOString(),
+      posts: items.length,
+      er: rateOf(items, isIg, followers),
+      reach: isIg
+        ? median(items.map((p) => p.reach)) ?? median(items.map((p) => p.views))
+        : median(items.map((p) => p.views)),
+      interactions: median(items.map((p) => p.interactions)),
+      partial: end > now,
+      top: top && {
+        thumbnailUrl: top.thumbnailUrl,
+        caption: top.caption,
+        formatLabel: top.formatLabel,
+        er: top.er,
+        permalink: top.permalink,
+      },
+    });
+  }
+
+  // A twelve-month run has two Septembers in it. The year goes on the first
+  // column and on every January, and only when the series actually crosses one.
+  if (unit === "month" && new Set(points.map((p) => utc(Date.parse(p.from)).getUTCFullYear())).size > 1) {
+    for (const [i, p] of points.entries()) {
+      const d = utc(Date.parse(p.from));
+      if (i === 0 || d.getUTCMonth() === 0) p.label = `${p.label}/${String(d.getUTCFullYear()).slice(2)}`;
+    }
+  }
+
+  return {
+    unit,
+    points,
+    cappedSince: capped ? new Date(oldestHeld!).toISOString() : null,
+    band,
+  };
+}
+
 const KIND_LABELS: Record<EngagementKind, string> = {
   likes: "Curtidas",
   comments: "Comentários",
@@ -461,11 +640,7 @@ export function analyze(
     likes: median(posts.map((p) => p.likes)),
     comments: median(posts.map((p) => p.comments)),
   };
-  const typicalInteractions = median(posts.map((p) => p.interactions));
-
-  const engagementRate = isIg
-    ? ratio(typicalInteractions, followers)
-    : ratio(typicalInteractions, typical.views);
+  const engagementRate = rateOf(posts, isIg, followers);
   const byReach = median(posts.map((p) => p.reachRate));
   const viewRate = ratio(typical.views, followers);
   const sendsPerReach = isIg ? median(posts.map((p) => ratio(p.sends, p.reach))) : null;
@@ -615,6 +790,7 @@ export function analyze(
     content,
     typical,
     sendsPerReach,
+    periods: periodSeries(all, posts, isIg, followers, windowDays, from, isIg ? tier.band : [4, 8]),
     // bigint arrives as a string from Postgres.
     lifetimeLikes: stats.likes_total != null ? Number(stats.likes_total) : null,
     published: posts
