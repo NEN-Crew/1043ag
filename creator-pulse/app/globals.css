@@ -373,13 +373,25 @@ a.post:hover .post-media { border-color: var(--ink); }
 
 /* ---- ranking ---- */
 .rank-row {
+  position: relative;
   display: grid;
-  grid-template-columns: 44px minmax(180px, 1.4fr) 132px minmax(150px, 1fr) 96px 92px 22px;
+  grid-template-columns: 44px minmax(180px, 1.4fr) 132px minmax(150px, 1fr) 96px 92px 34px 22px;
   gap: 16px; align-items: center; padding: 16px 14px;
   border-top: 1px solid var(--line);
   transition: background 120ms;
 }
-a.rank-row:hover { background: rgba(22, 73, 214, 0.05); }
+.rank-row:hover { background: rgba(22, 73, 214, 0.05); }
+/* The handle's link is stretched over the whole row, so the row stays one
+   click target without nesting an anchor inside an anchor. */
+.rank-link { display: block; }
+.rank-link::after { content: ""; position: absolute; inset: 0; }
+.rank-insights {
+  position: relative; z-index: 2; justify-self: end;
+  width: 32px; height: 32px; display: inline-grid; place-items: center;
+  border: 1px solid var(--line); color: var(--ink-500); background: var(--paper);
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.rank-insights:hover { border-color: var(--ink); color: var(--paper); background: var(--ink); }
 .rank-head { padding: 0 14px 10px; border-bottom: 1px solid var(--ink); border-top: 0; }
 .rank-n { font-family: var(--font-display); font-size: 30px; line-height: 0.9; text-align: center; color: var(--ink-300); }
 .rank-n.top { color: var(--cobalt); }
@@ -440,6 +452,8 @@ a.rank-row:hover { background: rgba(22, 73, 214, 0.05); }
   .rank-followers { flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 8px; }
   .rank-row > *:last-child { display: none; }
   .rank-verdict { justify-self: start !important; }
+  .rank-insights { justify-self: start; width: auto; padding: 0 12px; gap: 8px; height: 36px; }
+  .rank-insights::after { content: "Insights"; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   .only-narrow { display: inline; }
 }
 
@@ -485,6 +499,96 @@ a.rank-row:hover { background: rgba(22, 73, 214, 0.05); }
 }
 .window-picker .caption { margin-left: auto; }
 @media (max-width: 560px) { .window-picker .caption { margin-left: 0; } }
+
+/* ============================================================
+   Insights (agency only). A deliberately plainer register than the
+   dashboard: white, five greys, one sans-serif, big numbers, hairlines.
+   The mono survives only in the small labels. Nothing carries meaning
+   through colour here — the best bar is ink, the rest are grey.
+   ============================================================ */
+.ins {
+  --g1: #111111; --g2: #6e6e73; --g3: #a1a1a6; --g4: #d2d2d7; --g5: #e5e5ea; --g6: #f5f5f7;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Inter, Arial, sans-serif;
+  color: var(--g1); letter-spacing: -0.005em;
+}
+.ins-head {
+  padding: 26px 0 24px; border-bottom: 1px solid var(--g1);
+  display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; align-items: flex-end;
+}
+.ins-kicker { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--g2); }
+.ins-title { font-size: clamp(34px, 5vw, 60px); font-weight: 600; letter-spacing: -0.035em; line-height: 1; margin-top: 10px; overflow-wrap: anywhere; }
+.ins-sub { font-size: 14px; color: var(--g2); margin-top: 10px; line-height: 1.5; }
+.ins-tabs { display: inline-flex; border: 1px solid var(--g1); }
+.ins-tabs a {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px;
+  font-size: 12px; font-weight: 600; color: var(--g1);
+}
+.ins-tabs a + a { border-left: 1px solid var(--g1); }
+.ins-tabs a[aria-current="true"] { background: var(--g1); color: #fff; }
+
+.ins-grid { display: grid; grid-template-columns: 1fr 1fr; border-left: 1px solid var(--g5); }
+.ins-block { border-right: 1px solid var(--g5); border-bottom: 1px solid var(--g5); padding: 28px 30px 32px; min-width: 0; }
+.ins-block.wide { grid-column: 1 / -1; }
+.ins-n { font-family: var(--font-mono); font-size: 11px; color: var(--g3); letter-spacing: 0.12em; }
+.ins-h { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin-top: 6px; line-height: 1.1; }
+.ins-lede { font-size: 13px; color: var(--g2); margin-top: 8px; max-width: 560px; line-height: 1.5; }
+.ins-lede b { color: var(--g1); font-weight: 600; }
+.ins-big { font-size: 72px; font-weight: 600; letter-spacing: -0.045em; line-height: 0.95; margin-top: 24px; font-variant-numeric: tabular-nums; }
+.ins-big small { font-size: 24px; color: var(--g3); font-weight: 500; margin-left: 3px; letter-spacing: 0; }
+.ins-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px 24px; margin-top: 24px; }
+.ins-kpi .v { font-size: 34px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.ins-kpi .l { font-size: 12px; color: var(--g2); margin-top: 7px; line-height: 1.4; }
+.ins-sep { height: 1px; background: var(--g5); margin: 18px 0 4px; }
+
+.ins-rows { margin-top: 22px; display: grid; gap: 9px; }
+.ins-row { display: grid; grid-template-columns: 128px 1fr 76px 118px; gap: 14px; align-items: center; font-size: 13px; }
+.ins-row .k { font-family: var(--font-mono); font-size: 12px; color: var(--g2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ins-row .tr { height: 10px; background: var(--g6); }
+.ins-row .fl { display: block; height: 100%; background: var(--g1); }
+.ins-row .fl.mut { background: var(--g4); }
+.ins-row .v { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.ins-row .s { color: var(--g3); text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.ins-table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+.ins-table th {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--g3); text-align: left; padding: 0 0 8px; border-bottom: 1px solid var(--g1); font-weight: 400;
+}
+.ins-table td { padding: 12px 0; border-bottom: 1px solid var(--g5); font-size: 14px; font-variant-numeric: tabular-nums; }
+.ins-table th.r, .ins-table td.r { text-align: right; }
+.ins-table td.b { font-weight: 600; }
+.ins-table tr:last-child td { border-bottom: 0; }
+
+.ins-empty { margin-top: 20px; padding: 16px 18px; background: var(--g6); font-size: 13px; color: var(--g2); line-height: 1.5; }
+.ins-note { font-size: 12px; color: var(--g3); margin-top: 14px; line-height: 1.5; }
+.ins-two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 40px; margin-top: 26px; }
+
+.ins-posts { display: grid; margin-top: 10px; }
+.ins-post {
+  display: grid; grid-template-columns: 48px 1fr auto; gap: 14px; align-items: center;
+  color: inherit; padding: 10px 0; border-bottom: 1px solid var(--g5);
+}
+.ins-post:last-child { border-bottom: 0; }
+.ins-post img, .ins-post .ph { width: 48px; height: 48px; object-fit: cover; background: var(--g6); display: block; }
+.ins-post .cap { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; line-height: 1.4; }
+.ins-post .meta { display: block; font-family: var(--font-mono); font-size: 11px; color: var(--g3); margin-top: 3px; }
+.ins-post .val { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+a.ins-post:hover .cap { text-decoration: underline; }
+
+/* The daily-reach chart borrows the dashboard's Chart; its hint text reads in grey here. */
+.ins .caption { font-family: inherit; color: var(--g3); }
+
+@media (max-width: 900px) {
+  .ins-grid { grid-template-columns: 1fr; border-left: 0; }
+  .ins-block { padding: 24px 0 28px; border-right: 0; }
+  .ins-two { grid-template-columns: 1fr; }
+  .ins-row { grid-template-columns: 96px 1fr 64px 96px; gap: 10px; }
+  .ins-big { font-size: 56px; }
+}
+@media (max-width: 560px) {
+  .ins-row { grid-template-columns: 80px 1fr 60px; }
+  .ins-row .s { display: none; }
+}
 
 /* Standout marker. Sits under the format chip, above the PUBLI tag's slot. */
 .post-flag {

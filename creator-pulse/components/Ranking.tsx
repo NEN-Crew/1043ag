@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { AgencyRoster, RosterEntry } from "@/lib/report";
 import { formatCount, formatFreshness, formatRate } from "@/lib/format";
 import { Caption, DeltaTag, Eyebrow, VerdictChip } from "./ui";
-import { AlertTriangle, ChevronRight, Clock, Grid, Info, PlatformIcon } from "./Icons";
+import { AlertTriangle, ChevronRight, Clock, Grid, Info, Insights, PlatformIcon } from "./Icons";
 
 type SortKey = "er" | "followers" | "growth";
 type Network = "all" | "instagram" | "tiktok";
@@ -115,6 +115,7 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
           <span className="colhead" style={{ textAlign: "right" }}>Seguidores</span>
           <span className="colhead" style={{ textAlign: "right" }}>Veredito</span>
           <span />
+          <span />
         </div>
 
         {rows.length === 0 ? (
@@ -123,12 +124,11 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
           </div>
         ) : (
           rows.map((c, i) => (
-            <Link
-              key={`${c.creatorId}-${c.platform}`}
-              href={`/admin/${c.creatorId}`}
-              className="rank-row"
-              title={`Abrir perfil de ${c.handle ? `@${c.handle}` : c.name}`}
-            >
+            // The whole row opens the profile through the stretched link on
+            // the handle; the insights icon is a second, separate link. Two
+            // anchors side by side rather than one nested in the other, which
+            // HTML doesn't allow and browsers break in different ways.
+            <div key={`${c.creatorId}-${c.platform}`} className="rank-row">
               <span className={`rank-n${i < 3 ? " top" : ""}`}>{String(i + 1).padStart(2, "0")}</span>
 
               <span className="rank-id">
@@ -141,7 +141,13 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
                   </span>
                 )}
                 <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span className="rank-handle">{c.handle ? `@${c.handle}` : c.name}</span>
+                  <Link
+                    href={`/admin/${c.creatorId}`}
+                    className="rank-handle rank-link"
+                    title={`Abrir perfil de ${c.handle ? `@${c.handle}` : c.name}`}
+                  >
+                    {c.handle ? `@${c.handle}` : c.name}
+                  </Link>
                   <span className="rank-sub">{c.name}</span>
                 </span>
               </span>
@@ -177,10 +183,19 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
                 <VerdictChip verdict={c.verdict} />
               </span>
 
+              <Link
+                href={`/admin/${c.creatorId}/insights?rede=${c.platform}`}
+                className="rank-insights"
+                title="Insights · só agência"
+                aria-label={`Insights de ${c.handle ? `@${c.handle}` : c.name} no ${c.platformLabel}`}
+              >
+                <Insights size={15} />
+              </Link>
+
               <span style={{ justifySelf: "end", color: "var(--ink-300)" }}>
                 <ChevronRight size={16} />
               </span>
-            </Link>
+            </div>
           ))
         )}
 

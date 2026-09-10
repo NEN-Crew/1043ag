@@ -1,5 +1,6 @@
 import { sql } from "./db";
 import { Delta, HistoryInput, delta } from "./metrics";
+import type { HistoryRow } from "./insights";
 
 /**
  * Trends from the append-only snapshot tables. Growth and period-over-period
@@ -151,3 +152,24 @@ export async function getHistory(
 }
 
 export const emptyHistory: HistoryByPlatform = { instagram: EMPTY, tiktok: EMPTY };
+
+/**
+ * The raw snapshots for one creator, oldest first. The insights screen reads
+ * per-post metrics and the daily account insights straight off them, which
+ * the trend builder above throws away.
+ */
+export async function getHistoryRows(
+  influencerId: string
+): Promise<{ instagram: HistoryRow[]; tiktok: HistoryRow[] }> {
+  const [ig, tt] = await Promise.all([
+    sql`select captured_at, followers, post_metrics, account_insights
+        from instagram_stats_history
+        where influencer_id = ${influencerId} and captured_at > now() - interval '400 days'
+        order by captured_at asc`,
+    sql`select captured_at, followers, video_metrics
+        from tiktok_stats_history
+        where influencer_id = ${influencerId} and captured_at > now() - interval '400 days'
+        order by captured_at asc`,
+  ]);
+  return { instagram: ig as HistoryRow[], tiktok: tt as HistoryRow[] };
+}

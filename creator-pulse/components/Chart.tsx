@@ -27,6 +27,12 @@ type Props = {
    * and a chart that lies.
    */
   minSpan: number;
+  /**
+   * Lowest value the axis may show. The range is centred on the data, which
+   * for a count near zero puts negative numbers on the axis; a floor of 0
+   * keeps "contas alcançadas" from ever reading -565.
+   */
+  floor?: number;
 };
 
 const PAD = { top: 16, right: 14, bottom: 26, left: 52 };
@@ -40,6 +46,7 @@ export default function Chart({
   height = 190,
   minSpan,
   markers,
+  floor,
 }: Props) {
   const detail = formatDetail ?? format;
 
@@ -73,7 +80,9 @@ export default function Chart({
     const mid = (lo + hi) / 2;
     // Honour the floor, then add 15% headroom so the line never touches an edge.
     const half = Math.max((hi - lo) / 2, minSpan / 2) * 1.15;
-    const domain: [number, number] = [mid - half, mid + half];
+    let domain: [number, number] = [mid - half, mid + half];
+    // Honour the floor by sliding the range up, never by squashing it.
+    if (floor != null && domain[0] < floor) domain = [floor, floor + 2 * half];
 
     const plotW = Math.max(1, width - PAD.left - PAD.right);
     const plotH = Math.max(1, height - PAD.top - PAD.bottom);
@@ -88,10 +97,10 @@ export default function Chart({
       domain,
       plotW,
       plotH,
-      ticks: [domain[1], mid, domain[0]],
+      ticks: [domain[1], (domain[0] + domain[1]) / 2, domain[0]],
       path: points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" "),
     };
-  }, [points, width, height, minSpan]);
+  }, [points, width, height, minSpan, floor]);
 
   const shown = active != null ? points[active] : null;
   const dayPosts = shown ? publishedBy.get(day(shown.at)) ?? [] : [];

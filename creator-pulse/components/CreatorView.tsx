@@ -24,6 +24,7 @@ import {
   Eye,
   Heart,
   Info,
+  Insights,
   KindIcon,
   FormatIcon,
   PlatformIcon,
@@ -283,11 +284,23 @@ function Masthead({
               ))}
             </div>
           )}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "rgba(229,229,229,0.72)" }}>
               <Clock size={13} />
               {refreshing ? "atualizando…" : formatFreshness(view?.updatedAt)}
             </span>
+            {/* The agency's reading of this account. Staff only; the route
+                checks on the server, this is just the door. */}
+            {variant === "agency" && view && (
+              <a
+                className="btn on-dark"
+                style={{ height: 40 }}
+                href={`/admin/${report.influencer.id}/insights?rede=${view.platform}`}
+              >
+                <Insights size={15} />
+                Insights
+              </a>
+            )}
             <button
               className="btn btn-icon on-dark"
               onClick={onRefresh}

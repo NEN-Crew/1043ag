@@ -104,6 +104,11 @@ export const TikTok = (p: Props) => (
   <Svg {...p}><path d="M15 3v10.5a4 4 0 1 1-3.2-3.9" /><path d="M15 6.2A5.4 5.4 0 0 0 20 8.6" /></Svg>
 );
 
+/** The agency's insights screen. Bars on an axis: a reading, not a feed. */
+export const Insights = (p: Props) => (
+  <Svg {...p}><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></Svg>
+);
+
 export const ICONS = { Heart, Comment, Bookmark, Send, Eye, Play, Layers, Image };
 
 export function PlatformIcon({ platform, size }: { platform: "instagram" | "tiktok"; size?: number }) {
