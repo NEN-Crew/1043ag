@@ -46,9 +46,14 @@ const WINDOW_LABELS: Record<number, string> = {
   365: "12 meses",
 };
 
+// Dates are read in Brasília time. The server renders in UTC, so without a
+// fixed zone a post at 22h would print one day on the server and another in
+// the browser, and React would throw the server's markup away.
+const TZ = "America/Sao_Paulo";
+
 /** dd/mm — enough to check a window against a calendar. */
 function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: TZ });
 }
 
 /**
@@ -60,7 +65,7 @@ function rangeLabel(from: string, to: string): string {
   const a = new Date(from);
   const b = new Date(to);
   const withYear = (d: Date) =>
-    d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+    d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: TZ });
   return a.getFullYear() === b.getFullYear()
     ? `${shortDate(from)} a ${shortDate(to)}`
     : `${withYear(a)} a ${withYear(b)}`;
