@@ -7,13 +7,13 @@ import { Download } from "./Icons";
 export default function ExportButtons({ windowDays }: { windowDays: number }) {
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      <a className="btn on-dark" href={`/api/admin/export?tipo=contas&janela=${windowDays}`} download>
+      <a className="btn sm" href={`/api/admin/export?tipo=contas&janela=${windowDays}`} download>
         <Download size={13} />
-        Exportar relatório
+        exportar contas
       </a>
-      <a className="btn on-dark" href={`/api/admin/export?tipo=posts&janela=${windowDays}`} download>
+      <a className="btn sm" href={`/api/admin/export?tipo=posts&janela=${windowDays}`} download>
         <Download size={13} />
-        Exportar posts
+        exportar posts
       </a>
     </div>
   );

@@ -7,7 +7,7 @@ import CreateInfluencer from "@/components/CreateInfluencer";
 import Ranking from "@/components/Ranking";
 import TopBar from "@/components/TopBar";
 import ExportButtons from "@/components/ExportButtons";
-import { Eyebrow } from "@/components/ui";
+import { Caption, Spinner } from "@/components/ui";
 import { DEFAULT_WINDOW } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -15,72 +15,42 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   // The roster is the whole client list — staff only, enforced here on the
   // server. Hiding the switcher is not access control.
-  if (!isAdmin()) {
-    return (
-      <main className="auth">
-        <div className="auth-card">
-          <div className="wordmark" style={{ marginBottom: 6 }}>1043 AG</div>
-          <p className="caption" style={{ marginBottom: 24 }}>Visão agência</p>
-          <AdminGate />
-          <p className="caption" style={{ textAlign: "center", marginTop: 20, fontSize: 11 }}>
-            Tem uma conta de equipe?{" "}
-            <a href="/login" style={{ textDecoration: "underline" }}>Entre com seu e-mail</a>
-          </p>
-        </div>
-      </main>
-    );
-  }
+  if (!isAdmin()) return <AdminGate />;
 
   const roster = await getRoster();
   const { meta } = roster;
 
   return (
     <>
-      <TopBar view="agencia" staff />
+      <TopBar
+        staff
+        identity={{
+          name: "1043 agência",
+          handle: "visão agência",
+          stats: [
+            { value: String(meta.creatorCount), label: "creators" },
+            { value: `${formatRate(meta.avgEr)}%`, label: "er médio" },
+            { value: formatCount(meta.totalReach), label: "alcance total" },
+          ],
+        }}
+      />
       <main className="shell">
-        <div className="field grain">
-          <div className="field-head" style={{ alignItems: "flex-end" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Eyebrow onDark>Agência · roster</Eyebrow>
-              <h1 className="page-h1">Visão agência</h1>
-              <p style={{ fontSize: 13, color: "rgba(229,229,229,0.82)", margin: 0 }}>
-                Todos os creators da 1043, ranqueados por engajamento.
-              </p>
-              {meta.connectedCount > 0 && <ExportButtons windowDays={DEFAULT_WINDOW} />}
-            </div>
-            <div className="field-stats">
-              <div>
-                <div className="field-stat-label">Creators</div>
-                <div className="field-stat-value">{meta.creatorCount}</div>
-              </div>
-              <div>
-                <div className="field-stat-label">ER médio</div>
-                <div className="field-stat-value">{formatRate(meta.avgEr)}%</div>
-              </div>
-              <div>
-                <div className="field-stat-label">Alcance total</div>
-                <div className="field-stat-value">{formatCount(meta.totalReach)}</div>
-              </div>
-            </div>
-          </div>
+        <div className="controls">
+          <Caption>Todos os creators da 1043, ranqueados por engajamento nos últimos {DEFAULT_WINDOW} dias.</Caption>
+          {meta.connectedCount > 0 && <ExportButtons windowDays={DEFAULT_WINDOW} />}
         </div>
 
         {meta.creatorCount === 0 ? (
-          <section className="section first">
-            <div className="section-body">
-              <p className="caption">Nenhum creator ainda. Adicione o primeiro abaixo.</p>
-            </div>
-            <div className="section-index" aria-hidden="true">01</div>
-          </section>
+          <div className="notice">Nenhum creator ainda. Adicione o primeiro abaixo.</div>
         ) : (
-          <Suspense fallback={<div style={{ height: 320 }} />}>
+          <Suspense fallback={<div style={{ display: "grid", placeItems: "center", height: 320 }}><Spinner small /></div>}>
             <Ranking roster={roster} />
           </Suspense>
         )}
 
         <CreateInfluencer />
 
-        <div className="footer">
+        <div className="foot-note">
           <span>1043 AG · creator performance</span>
           <span>uso interno</span>
         </div>

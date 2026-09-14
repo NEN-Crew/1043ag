@@ -303,7 +303,7 @@ export default function PeriodChart({ series, metric, reachLabel, height = 230 }
             }}
           >
             {shown.title}
-            {shown.partial && <span style={{ color: "var(--accent)" }}> · em andamento</span>}
+            {shown.partial && <span style={{ color: "var(--tint-3)" }}> · em andamento</span>}
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, marginTop: 9, color: "rgba(229,229,229,0.6)" }}>
@@ -397,7 +397,7 @@ function PeriodDelta({ from, to, isRate, vs }: { from: number; to: number; isRat
   if (change == null || !Number.isFinite(change)) return null;
   const up = change >= 0;
   return (
-    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 8, color: up ? "#fff" : "var(--accent)" }}>
+    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 8, color: up ? "#fff" : "var(--tint-3)" }}>
       {up ? "▲" : "▼"} {formatDelta(change, isRate ? "pp" : "pct")}
       {isRate && " pp"}
       <span style={{ fontWeight: 400, color: "rgba(229,229,229,0.6)" }}> vs. {vs}</span>

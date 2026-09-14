@@ -28,20 +28,23 @@ snapshot to the history tables, which is where growth over time comes from.
 The UI is a Swiss / editorial grid, in **Brazilian Portuguese**. Four rules hold it
 together — break one and the screen looks wrong even when every measurement is right:
 
-1. **Four colours only.** Cobalt `#1649D6`, orange-red `#FF3B00`, ink `#202020`,
-   hairline `#E5E5E5`, plus paper white. "Good" reads cobalt, "attention" reads
-   orange-red. No greens, no ambers, no secondary palette.
-2. **Everything is flat.** `border-radius: 0` everywhere, no shadows, no gradients.
-   Separation is 1px hairlines, never elevation.
-3. **Two typefaces, extreme contrast.** DM Serif Display for headlines and every
-   large number; Courier Prime for everything else. **There is no sans-serif** —
-   body text *is* the monospace.
-4. **Numbers are the art.** The engagement rate is set at up to 184px; its label is
-   11px uppercase mono. That contrast is the identity.
+1. **Two colours carry meaning.** Cobalt `#0E34CF` is the number, ink `#181818`
+   is the chrome. Greys (`#8C8C8C` labels, `#D9D9D9` hairlines and chips,
+   `#EDEDED` tracks) do the rest. Chips are grey whatever they say.
+2. **Three faces, three jobs.** DM Serif Display for section titles and the hero
+   rate; Geist Sans for numbers, body copy and buttons; Geist Mono for labels,
+   captions and anything that reads as data. (The Figma uses PP Kyoto / PP Neue
+   Montreal; these are the open equivalents.)
+3. **Cards are hairline and rounded.** 1px `#D9D9D9`, 16px radius. Buttons and
+   segmented controls are 11–12px outside, 8px inside. Bars are pills.
+4. **Numbers are cobalt and big; labels are mono, small and ink.** The
+   engagement rate is set at up to 144px in the serif.
 
-Tokens live at the top of `app/globals.css`; primitives (`Eyebrow`, `Section`,
-`Stat`, `DeltaTag`, `VerdictChip`, `Sparkline`, `BarRow`) live in `components/ui.tsx`.
-Both typefaces are self-hosted through `next/font`.
+The design source is the Figma file "1043", page *Layout dashboard* (frames
+Entrar, Carregamento, Home, Info). Tokens live at the top of `app/globals.css`;
+primitives (`Chip`, `Seg`, `SectionHead`, `DeltaTag`, `Sparkline`, `Bar`,
+`Donut`, `Spinner`) live in `components/ui.tsx`. All three typefaces are
+self-hosted (`next/font` for DM Serif, the `geist` package for the other two).
 
 **Engagement rate governs the screen.** It is the biggest number, the first thing
 rendered, and what the roster ranks by. Everything else — reach, cadence, the Pulse
@@ -50,8 +53,12 @@ Score — is supporting evidence, sized and placed accordingly.
 Two screens:
 
 - `/me` — the creator's own report.
+- `/me/info` — what the connection allows, how the score is built (with the
+  creator's own numbers), the engagement table by profile size, the FAQ.
+- `/me/insights` — when to publish, format, velocity, daily reach, cadence.
 - `/admin` — the agency roster, ranked. Staff only, enforced server-side.
-- `/admin/[id]` — drill-down into one creator, same report plus media value.
+- `/admin/[id]` — drill-down into one creator, same report; `/admin/[id]/info`
+  and `/admin/[id]/insights` mirror the creator's pages.
 - `/api/admin/export?tipo=contas|posts&janela=30` — CSV download of every account
   (one row per creator × network, ranked like the screen) or every post in the
   window. Semicolon-separated, decimal comma, UTF-8 BOM: opens clean in Excel
@@ -246,9 +253,10 @@ password. Staff log in at `/login` and land on `/admin`. The shared
 
 ```
 app/
+  loading.tsx       the cobalt loading screen
   login/            creator + staff login
-  me/               creator's own numbers + connect buttons
-  admin/            agency view — roster, create, refresh, export
+  me/               creator's own numbers + connect buttons (+ info, insights)
+  admin/            agency view — roster, create, refresh, export (+ [id]/info, [id]/insights)
   api/
     auth/           login / logout / shared admin password
     admin/          create creator, export CSV
@@ -268,11 +276,14 @@ lib/
   auth.ts           session cookies
   format.ts         pt-BR number, date and delta formatting
 components/
-  ui.tsx            Eyebrow · Section · Stat · DeltaTag · Verdict · Sparkline · BarRow
-  Icons.tsx         the icon set (functional only — nothing decorative)
-  CreatorView.tsx   masthead + sections 01–06
+  ui.tsx            Chip · Seg · SectionHead · DeltaTag · Sparkline · Bar · Donut · Spinner
+  Icons.tsx         the icon set (the Figma glyphs plus a few outline strokes)
+  CreatorView.tsx   the dashboard: header, controls, reach & growth, engagement,
+                    performance charts, content, audience, history
+  InfoView.tsx      the "informações" page
+  InsightsView.tsx  the insights screen
   Ranking.tsx       the agency roster, filtered and sorted
-  TopBar.tsx        shared chrome
+  TopBar.tsx        the dark header (logo, identity, figures, photo, sair)
 schema.sql          the seven tables
 scripts/setup-db.ts npm run db:setup
 scripts/create-admin.ts npm run admin:create

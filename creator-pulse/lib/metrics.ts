@@ -182,7 +182,10 @@ export type Component = {
 
 export type Audience = {
   geography: { name: string; pct: number }[];
-  gender: { female: number; male: number } | null;
+  /** Top cities, when Instagram reports them. Empty until the next refresh on older data. */
+  cities: { name: string; pct: number }[];
+  /** Shares of all followers; `other` is what the platform can't classify. */
+  gender: { female: number; male: number; other: number } | null;
   age: { label: string; pct: number }[];
   summary: string | null;
 };
@@ -195,6 +198,10 @@ export type PlatformView = {
   updatedAt: string | null;
   tier: Tier;
   followers: number | null;
+  /** Accounts this profile follows, as the platform reports it. */
+  following: number | null;
+  /** Lifetime number of posts (Instagram media_count / TikTok video_count). */
+  postCount: number | null;
 
   engagement: {
     rate: number | null;
@@ -764,6 +771,8 @@ export function analyze(
     updatedAt: stats.updated_at ?? null,
     tier,
     followers,
+    following: stats.following ?? null,
+    postCount: (isIg ? stats.media_count : stats.video_count) ?? null,
 
     engagement: {
       rate: engagementRate,
@@ -875,15 +884,21 @@ export function audienceFrom(demographics: any): Audience | null {
     .sort((a, b) => b.pct - a.pct)
     .map((c) => ({ name: COUNTRY_NAMES[c.key] ?? c.key, pct: c.pct }));
 
+  // "São Paulo, São Paulo (state)" → "São Paulo".
+  const cities = share(demographics.city)
+    .sort((a, b) => b.pct - a.pct)
+    .map((c) => ({ name: c.key.split(",")[0].trim(), pct: c.pct }));
+
   const genderRows = share(demographics.gender);
   const known = genderRows.filter((g) => GENDER_KEYS[g.key]);
   const knownTotal = known.reduce((a, g) => a + g.pct, 0);
-  // Instagram reports an "U" bucket; rebase F/M over the known share so the
-  // pair reads as a split rather than mysteriously summing to 77%.
+  // Instagram reports an "U" bucket too. It stays in as "outros", so the three
+  // shares add up to 100 the way the audience card shows them.
   const gender = knownTotal
     ? {
-        female: ((known.find((g) => g.key === "F")?.pct ?? 0) / knownTotal) * 100,
-        male: ((known.find((g) => g.key === "M")?.pct ?? 0) / knownTotal) * 100,
+        female: known.find((g) => g.key === "F")?.pct ?? 0,
+        male: known.find((g) => g.key === "M")?.pct ?? 0,
+        other: Math.max(0, 100 - knownTotal),
       }
     : null;
 
@@ -898,7 +913,7 @@ export function audienceFrom(demographics: any): Audience | null {
   if (topAge) parts.push(`na maioria ${topAge.label}`);
   if (geography[0]) parts.push(`${Math.round(geography[0].pct)}% no ${geography[0].name}`);
 
-  return { geography, gender, age, summary: parts.length ? parts.join(", ") : null };
+  return { geography, cities, gender, age, summary: parts.length ? parts.join(", ") : null };
 }
 
 /** One number per creator for the roster, weighted by where the audience is. */

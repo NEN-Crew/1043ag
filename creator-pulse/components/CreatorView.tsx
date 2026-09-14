@@ -5,31 +5,28 @@ import type { CreatorReport } from "@/lib/report";
 import type { Audience, PlatformView, Post } from "@/lib/metrics";
 import { WINDOWS, isPaid } from "@/lib/metrics";
 import { cadenceOf } from "@/lib/insights";
-import {
-  dash,
-  formatCount,
-  formatFreshness,
-  formatNumber,
-  formatRate,
-  formatRatio,
-} from "@/lib/format";
-import { BarRow, Caption, DeltaTag, Eyebrow, Section, Sparkline, Stat, VerdictChip } from "./ui";
+import { dash, formatCount, formatFreshness, formatNumber, formatRate } from "@/lib/format";
+import { Bar, Caption, Chip, DeltaTag, Donut, SectionHead, Seg, Sparkline, VerdictChip } from "./ui";
+import TopBar, { creatorStats } from "./TopBar";
 import Chart from "./Chart";
 import PeriodChart, { type PeriodMetric } from "./PeriodChart";
 import {
+  AngleRight,
+  Asterisk,
+  Bookmark,
   ChevronDown,
   Clock,
   Comment,
   Eye,
+  File,
+  Folder,
+  FormatIcon,
   Heart,
   Info,
   Insights,
   KindIcon,
-  FormatIcon,
-  PlatformIcon,
   Refresh,
   Send,
-  Users,
 } from "./Icons";
 
 type Props = {
@@ -37,6 +34,10 @@ type Props = {
   /** "self" is the creator looking at their own numbers; "agency" is staff. */
   variant: "self" | "agency";
   windowDays: number;
+  /** Notices from the page (a network just connected, a failed connection). */
+  notices?: React.ReactNode;
+  /** Rendered after the report, before the footer (the connect-a-network block). */
+  after?: React.ReactNode;
 };
 
 const WINDOW_LABELS: Record<number, string> = {
@@ -56,11 +57,7 @@ function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: TZ });
 }
 
-/**
- * A date range. The year appears only when the ends fall in different ones —
- * without it a 12-month window reads "18/08 a 18/08", which looks like a single
- * day rather than a year.
- */
+/** A date range; the year appears only when the ends fall in different ones. */
 function rangeLabel(from: string, to: string): string {
   const a = new Date(from);
   const b = new Date(to);
@@ -71,13 +68,36 @@ function rangeLabel(from: string, to: string): string {
     : `${withYear(a)} a ${withYear(b)}`;
 }
 
-export default function CreatorView({ report, variant, windowDays }: Props) {
+export default function CreatorView({ report, variant, windowDays, notices, after }: Props) {
   const router = useRouter();
-  const [active, setActive] = useState(report.platforms[0]?.platform ?? "instagram");
+  const params = useSearchParams();
+  const wanted = params.get("rede");
+  const [active, setActive] = useState<"instagram" | "tiktok">(
+    (report.platforms.find((p) => p.platform === wanted)?.platform ?? report.platforms[0]?.platform ?? "instagram") as
+      | "instagram"
+      | "tiktok"
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const view = report.platforms.find((p) => p.platform === active) ?? report.platforms[0] ?? null;
+  const staff = variant === "agency";
+  const base = staff ? `/admin/${report.influencer.id}` : "/me";
+  const insightsHref = view ? `${base}/insights?rede=${view.platform}` : `${base}/insights`;
+  const infoHref = view ? `${base}/info?rede=${view.platform}` : `${base}/info`;
+
+  function setParam(key: string, value: string | null) {
+    const next = new URLSearchParams(params.toString());
+    if (value == null) next.delete(key);
+    else next.set(key, value);
+    const qs = next.toString();
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }
+
+  function selectNetwork(p: string) {
+    setActive(p as "instagram" | "tiktok");
+    setParam("rede", p);
+  }
 
   function fireToast(message: string) {
     setToast(message);
@@ -108,49 +128,114 @@ export default function CreatorView({ report, variant, windowDays }: Props) {
 
   return (
     <>
-      <Masthead
-        report={report}
-        active={active}
-        onSelect={setActive}
-        onRefresh={refresh}
-        refreshing={refreshing}
-        variant={variant}
+      <TopBar
+        staff={staff}
+        back={staff ? { href: "/admin", label: "voltar ao ranking" } : undefined}
+        identity={{
+          name: report.influencer.name,
+          handle: view?.handle,
+          avatarUrl: view?.avatarUrl ?? report.avatarUrl,
+          stats: creatorStats(view),
+        }}
       />
 
-      <WindowPicker windowDays={windowDays} />
+      <main className="shell">
+        {notices}
 
-      {view ? (
-        <>
-          <Engagement view={view} />
-          <Reach view={view} />
-          <Content view={view} />
-          <AudienceDisclosure index={4} audience={report.audience} platform={view.platform} />
-          <HistoryDisclosure index={5} view={view} />
-          <ScoreDisclosure index={6} view={view} />
-        </>
-      ) : (
-        <section className="section first">
-          <div className="section-body">
-            <Caption>
-              Nenhuma rede conectada ainda. Conecte o Instagram ou o TikTok para o relatório aparecer.
-            </Caption>
+        <div className="controls">
+          <Seg
+            label="Período"
+            value={String(windowDays)}
+            onChange={(d) => setParam("janela", d === "30" ? null : d)}
+            items={WINDOWS.map((d) => ({ key: String(d), label: WINDOW_LABELS[d] }))}
+          />
+          <div className="controls-right">
+            {view && (
+              <span className="fresh">
+                <Clock size={13} />
+                {refreshing ? "atualizando…" : formatFreshness(view.updatedAt)}
+              </span>
+            )}
+            {view && (
+              <button
+                className="btn btn-icon sm"
+                onClick={refresh}
+                disabled={refreshing}
+                aria-label="Atualizar números"
+                title={variant === "self" ? "Atualizar (1x a cada 12h)" : "Atualizar agora"}
+              >
+                <Refresh size={15} className={refreshing ? "spin" : undefined} />
+              </button>
+            )}
+            {view && (
+              <a className="btn sm" href={insightsHref}>
+                <Insights size={14} />
+                insights
+              </a>
+            )}
+            {report.platforms.length > 0 && (
+              <Seg
+                label="Rede"
+                cobalt
+                value={active}
+                onChange={selectNetwork}
+                items={report.platforms.map((p) => ({ key: p.platform, label: p.label.toLowerCase() }))}
+              />
+            )}
           </div>
-          <div className="section-index" aria-hidden="true">01</div>
-        </section>
-      )}
+        </div>
+
+        {view ? (
+          <>
+            <div className="dash-top">
+              <div style={{ minWidth: 0 }}>
+                <ReachGrowth view={view} />
+                <PostSum view={view} />
+                {view.window.posts === 0 ? <EmptyWindow view={view} /> : <Frequency view={view} />}
+              </div>
+              <Hero view={view} infoHref={infoHref} />
+            </div>
+
+            {view.window.posts > 0 && <Performance view={view} />}
+            <Content view={view} />
+            <AudienceSection audience={report.audience} platform={view.platform} />
+            <History view={view} />
+          </>
+        ) : (
+          <div className="notice" style={{ marginTop: 8 }}>
+            <span className="micro">nenhuma rede conectada</span>
+            Conecte o Instagram ou o TikTok para o relatório aparecer.
+          </div>
+        )}
+
+        {after}
+
+        <div className="dash-foot">
+          <p className="faq">
+            alguma dúvida?
+            <br />
+            leia nossa <a href={infoHref}>faq.</a>
+          </p>
+          <button className="dl no-print" onClick={() => window.print()} title="Salvar este relatório em PDF">
+            <span className="dl-box">
+              <Folder size={24} />
+            </span>
+            <span className="dl-label">
+              baixar
+              <br />
+              relatório
+            </span>
+          </button>
+        </div>
+        <div className="foot-note">
+          <span>1043 AG · creator performance</span>
+          <span>{staff ? report.influencer.email : "fim do relatório"}</span>
+        </div>
+      </main>
 
       {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", zIndex: 50,
-            background: "var(--ink)", color: "#e5e5e5", border: "1px solid var(--ink)",
-            padding: "12px 18px", display: "inline-flex", alignItems: "center", gap: 10,
-            fontSize: 12, fontWeight: 700, letterSpacing: "0.04em",
-          }}
-        >
-          <span style={{ width: 7, height: 7, background: "var(--accent)" }} />
+        <div role="status" aria-live="polite" className="toast">
+          <i />
           {toast}
         </div>
       )}
@@ -158,247 +243,297 @@ export default function CreatorView({ report, variant, windowDays }: Props) {
   );
 }
 
-/**
- * The period every aggregate below is computed over. It lives in the URL so a
- * given reading is shareable and survives a refresh.
- */
-function WindowPicker({ windowDays }: { windowDays: number }) {
-  const router = useRouter();
-  const params = useSearchParams();
+/* ─────────────────── alcance & crescimento ─────────────────── */
 
-  function set(days: number) {
-    const next = new URLSearchParams(params.toString());
-    if (days === 30) next.delete("janela");
-    else next.set("janela", String(days));
-    const qs = next.toString();
-    router.replace(qs ? `?${qs}` : "?", { scroll: false });
-  }
+function ReachGrowth({ view }: { view: PlatformView }) {
+  const by = (key: string) => view.summary.find((m) => m.key === key);
+  const followers = by("followers");
+  const growth = by("growth");
+  const score = by("score");
+  const reach = by("reach");
 
   return (
-    <div className="window-picker">
-      <span className="micro">Período</span>
-      <div className="segbox" role="tablist" aria-label="Período">
-        {WINDOWS.map((d) => (
-          <button
-            key={d}
-            role="tab"
-            aria-selected={d === windowDays}
-            className="seg"
-            onClick={() => set(d)}
-          >
-            {WINDOW_LABELS[d]}
-          </button>
-        ))}
+    <section className="section" style={{ paddingTop: 0 }}>
+      <SectionHead title="alcance & crescimento" />
+      <div className="card">
+        <div className="kpis">
+          <div className="kpi">
+            <span className="kpi-label">seguidores</span>
+            <span className="kpi-value">{formatCount(followers?.value)}</span>
+            <span className="kpi-foot">
+              <DeltaTag delta={followers?.delta} suffix=" em 30 dias" />
+              {followers?.trend && followers.trend.length > 2 && (
+                <Sparkline data={followers.trend.map((p) => p.value)} w={110} h={20} color="var(--ink-300)" />
+              )}
+            </span>
+          </div>
+
+          <div className="kpi">
+            <span className="kpi-label">crescimento</span>
+            {growth?.value == null ? (
+              <span className="kpi-value empty">ainda sem histórico para comparar</span>
+            ) : (
+              <span className="kpi-value">
+                {formatRate(growth.value)}
+                <span className="u">%</span>
+              </span>
+            )}
+            <span className="kpi-foot">{growth?.value != null && <Caption>seguidores em 30 dias</Caption>}</span>
+          </div>
+
+          <div className="kpi">
+            <span className="kpi-label">
+              score <VerdictChip verdict={score?.verdict} />
+            </span>
+            <span className="kpi-value">
+              {score?.value == null ? dash : formatRate(score.value, 0)}
+              <span className="u">/100</span>
+            </span>
+            <span className="kpi-foot">
+              <Caption>engajamento · alcance · impacto · consistência</Caption>
+            </span>
+          </div>
+
+          <div className="kpi">
+            <span className="kpi-label">
+              {reach?.label.toLowerCase() ?? "alcance médio"} <VerdictChip verdict={reach?.verdict} />
+            </span>
+            <span className="kpi-value">{formatCount(reach?.value)}</span>
+            <span className="kpi-foot">
+              <Caption>por post, mediana do período</Caption>
+            </span>
+          </div>
+        </div>
       </div>
-      <Caption>Período aplicado a todos os números abaixo.</Caption>
-    </div>
+      {view.caveat && (
+        <Caption style={{ marginTop: 10, paddingLeft: 10 }}>{view.caveat}</Caption>
+      )}
+    </section>
+  );
+}
+
+/* ─────────────────── soma das postagens ─────────────────── */
+
+function PostSum({ view }: { view: PlatformView }) {
+  const e = view.engagement;
+  if (view.window.posts === 0) return null;
+
+  return (
+    <>
+      <div className="sub-head">
+        <h3 className="h3">soma das postagens desse período</h3>
+        <Caption>
+          {view.window.posts} {view.window.posts === 1 ? "post" : "posts"} · {rangeLabel(view.window.from, view.window.to)}
+        </Caption>
+      </div>
+      <div className="sum-row">
+        <div className="card tight">
+          <div className="sum">
+            {e.breakdown.map((b) => (
+              <div className="sum-cell" key={b.kind}>
+                <span className="l">
+                  <KindIcon kind={b.kind} size={13} />
+                  {b.label.toLowerCase()}
+                </span>
+                <span className="v">{formatCount(b.count)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {e.byReach != null && (
+          <div className="aside-stat">
+            <span className="v">{formatRate(e.byReach)}%</span>
+            <span className="t">
+              de quem vê,
+              <br />
+              reage aos seus posts.
+            </span>
+          </div>
+        )}
+      </div>
+      <Caption style={{ marginTop: 10, paddingLeft: 10 }}>
+        Soma dos {view.window.posts} posts do período. O ER usa a mediana por post, não a soma.
+        {view.lifetimeLikes != null && (
+          <>
+            {" "}Total da conta no perfil do {view.label}: <b>{formatCount(view.lifetimeLikes)}</b> curtidas.
+          </>
+        )}
+      </Caption>
+    </>
+  );
+}
+
+/* ─────────────────── frequência + apoio ─────────────────── */
+
+function Frequency({ view }: { view: PlatformView }) {
+  const c = useMemo(() => cadenceOf(view), [view]);
+  const e = view.engagement;
+  const cells = [
+    { key: "week", v: c.perWeek == null ? dash : formatRate(c.perWeek, 1), l: "posts por semana" },
+    { key: "gap", v: c.medianGap == null ? dash : formatRate(c.medianGap, 1), l: "dias entre posts, mediana" },
+    { key: "max", v: c.maxGap == null ? dash : String(Math.round(c.maxGap)), l: "dias no maior intervalo" },
+    { key: "last", v: c.lastPostAt ? shortDate(c.lastPostAt) : dash, l: "último post" },
+  ];
+
+  return (
+    <>
+      <div className="sub-head">
+        <h3 className="h3">frequência</h3>
+        <Caption>um intervalo longo é o motivo mais comum de o engajamento mudar</Caption>
+      </div>
+      <div className="card tight">
+        <div className="freq">
+          {cells.map((x) => (
+            <div key={x.key}>
+              <div className="v">{x.v}</div>
+              <div className="l">{x.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="support" style={{ marginTop: 14 }}>
+        <span>
+          <Comment size={12} />
+          taxa de comentários <b>{e.commentsRate == null ? dash : `${formatRate(e.commentsRate, 2)}%`}</b>
+        </span>
+        {e.likesPerComment != null && (
+          <span>
+            <Heart size={12} />
+            <b>1</b> comentário a cada <b>{formatNumber(e.likesPerComment)}</b> curtidas
+          </span>
+        )}
+        {view.sendsPerReach != null && (
+          <span>
+            <Send size={12} />
+            salvos + enviados / alcance <b>{formatRate(view.sendsPerReach)}%</b>
+          </span>
+        )}
+      </div>
+    </>
   );
 }
 
 /** Nothing published in the window — say so, and say when they last did. */
 function EmptyWindow({ view }: { view: PlatformView }) {
   return (
-    <div className="notice" style={{ borderColor: "var(--accent)" }}>
-      <div className="micro" style={{ color: "var(--accent)", marginBottom: 8 }}>
-        Nenhum post no período
-      </div>
-      <span style={{ color: "var(--ink)", fontSize: 13 }}>
-        Sem posts entre {rangeLabel(view.window.from, view.window.to)}.{" "}
-        {view.window.lastPostAt
-          ? `Último post: ${new Date(view.window.lastPostAt).toLocaleDateString("pt-BR")}.`
-          : "Nenhum post registrado."}{" "}
-        Amplie o período para ver dados.
-      </span>
+    <div className="notice warn" style={{ marginTop: 26 }}>
+      <span className="micro">nenhum post no período</span>
+      Sem posts entre {rangeLabel(view.window.from, view.window.to)}.{" "}
+      {view.window.lastPostAt
+        ? `Último post: ${new Date(view.window.lastPostAt).toLocaleDateString("pt-BR", { timeZone: TZ })}.`
+        : "Nenhum post registrado."}{" "}
+      Amplie o período para ver dados.
     </div>
   );
 }
 
-/* ─────────────────────────── masthead ─────────────────────────── */
+/* ─────────────────── engajamento (hero) ─────────────────── */
 
-function Masthead({
-  report,
-  active,
-  onSelect,
-  onRefresh,
-  refreshing,
-  variant,
-}: {
-  report: CreatorReport;
-  active: string;
-  onSelect: (p: "instagram" | "tiktok") => void;
-  onRefresh: () => void;
-  refreshing: boolean;
-  variant: "self" | "agency";
-}) {
-  const view = report.platforms.find((p) => p.platform === active);
-  // Each tab wears its own account's photo. The creator-level one is only a
-  // fallback, so a network without a picture borrows rather than showing an
-  // empty slot.
-  const avatar = view?.avatarUrl ?? report.avatarUrl;
-
-  return (
-    <div className="field grain">
-      <div className="field-head">
-        <div className="field-identity">
-          {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="avatar-lg" src={avatar} alt="" />
-          ) : (
-            <div className="avatar-lg">// foto</div>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
-            <Eyebrow onDark>
-              {variant === "self" ? "Creator performance · seus números" : "Creator performance · visão individual"}
-            </Eyebrow>
-            <h1 className="page-h1" style={{ overflowWrap: "break-word" }}>
-              {view?.handle ? `@${view.handle}` : report.influencer.name}
-            </h1>
-            {/* The handle, the photo and the tab are all per-network, so the
-                follower count has to be too. It used to sum both platforms and
-                sit here unchanged while you switched tabs, which read as a
-                broken number rather than as a total. */}
-            <div className="field-meta">
-              <b>{report.influencer.name}</b>
-              {view && (
-                <>
-                  <span style={{ opacity: 0.5 }}>·</span>
-                  <span>
-                    {formatCount(view.followers)} seguidores no {view.label}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 14 }}>
-          {report.platforms.length > 0 && (
-            <div className="segbox on-dark" role="tablist" aria-label="Rede">
-              {report.platforms.map((p) => (
-                <button
-                  key={p.platform}
-                  role="tab"
-                  aria-selected={p.platform === active}
-                  className="seg"
-                  onClick={() => onSelect(p.platform)}
-                >
-                  <PlatformIcon platform={p.platform} size={15} />
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "rgba(229,229,229,0.72)" }}>
-              <Clock size={13} />
-              {refreshing ? "atualizando…" : formatFreshness(view?.updatedAt)}
-            </span>
-            {/* The same insights screen for both readers; each route checks
-                on the server who may open it. */}
-            {view && (
-              <a
-                className="btn on-dark"
-                style={{ height: 40 }}
-                href={
-                  variant === "self"
-                    ? `/me/insights?rede=${view.platform}`
-                    : `/admin/${report.influencer.id}/insights?rede=${view.platform}`
-                }
-              >
-                <Insights size={15} />
-                Insights
-              </a>
-            )}
-            <button
-              className="btn btn-icon on-dark"
-              onClick={onRefresh}
-              disabled={refreshing}
-              aria-label="Atualizar números"
-              title={variant === "self" ? "Atualizar (1x a cada 12h)" : "Atualizar agora"}
-            >
-              <Refresh size={16} className={refreshing ? "spin" : undefined} />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ────────────────────── 01 · engajamento ────────────────────── */
-
-function Engagement({ view }: { view: PlatformView }) {
+function Hero({ view, infoHref }: { view: PlatformView; infoHref: string }) {
   const e = view.engagement;
+  const has = view.window.posts > 0 && e.rate != null;
 
   return (
-    <Section
-      index={1}
-      first
-      caption={`Engajamento · ${view.label} · ${rangeLabel(view.window.from, view.window.to)}`}
-      title="engajamento"
-    >
-      {view.window.posts === 0 && <EmptyWindow view={view} />}
-
-      <div className="hero-split" style={view.window.posts === 0 ? { display: "none" } : undefined}>
-        <div className="hero-col">
-          <div className="hero-rate">
+    <aside className="hero">
+      <h2 className="h2">engajamento</h2>
+      <div className="hero-rate">
+        {has ? (
+          <>
             <span className="n">{formatRate(e.rate)}</span>
             <span className="u">%</span>
-          </div>
+          </>
+        ) : (
+          <span className="n empty">{dash}</span>
+        )}
+      </div>
+      <div className="hero-chip">
+        <DeltaTag delta={e.delta} suffix=" vs. mês ant." />
+        <VerdictChip verdict={has ? e.verdict : null} />
+      </div>
+      <div className="hero-note">
+        <Asterisk size={15} />
+        <span>{e.verdictNote}</span>
+      </div>
+      <div className="hero-more">
+        <Caption>
+          {view.platform === "instagram"
+            ? "curtidas + comentários + salvos + enviados ÷ seguidores, na mediana dos posts."
+            : "curtidas + comentários + compartilhamentos ÷ views, na mediana dos vídeos."}
+        </Caption>
+        <a className="link caption" href={`${infoHref}#score`} style={{ color: "var(--cobalt)" }}>
+          como o score é montado →
+        </a>
+      </div>
+    </aside>
+  );
+}
 
-          <div className="hero-delta-row">
-            <DeltaTag delta={e.delta} suffix=" vs. mês ant." />
-            {e.delta && <span className="vrule" />}
-            <VerdictChip verdict={e.verdict} note={e.verdictNote} />
-          </div>
+/* ─────────────────── desempenho (charts) ─────────────────── */
 
-          {/* The same engagement measured against people reached rather than
-              followers — the honest read of how the content itself did. */}
-          {e.byReach != null && (
-            <div className="hero-yearly">
-              <span className="micro">Sobre o alcance</span>
-              <span className="n">{formatRate(e.byReach)}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--ink-400)" }}>%</span>
-              <span className="caption">de quem viu reagiu</span>
-            </div>
+function Performance({ view }: { view: PlatformView }) {
+  const [metric, setMetric] = useState<PeriodMetric>("er");
+  const e = view.engagement;
+  const s = view.periods;
+  const reachLabel = view.platform === "instagram" ? "Alcance" : "Views";
+  const unitLabel = s?.unit === "week" ? "semana a semana" : "mês a mês";
+  const since = s?.cappedSince
+    ? new Date(s.cappedSince).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    : null;
+
+  return (
+    <section className="section">
+      <SectionHead title="desempenho" />
+
+      <div className="card">
+        <div className="chart-head">
+          <div>
+            <span className="label-lg">por período{s ? ` · ${unitLabel}` : ""}</span>
+            <Caption>
+              {metric === "er"
+                ? "Cada coluna é o ER dos posts publicados naquele período, na mesma conta do número grande acima."
+                : metric === "reach"
+                ? `${reachLabel} de um post típico de cada período, pela mediana.`
+                : "Reações de um post típico de cada período, pela mediana: curtidas, comentários e envios."}
+            </Caption>
+          </div>
+          {s && (
+            <Seg
+              small
+              label="Métrica por período"
+              value={metric}
+              onChange={(k) => setMetric(k as PeriodMetric)}
+              items={[
+                { key: "er", label: "ER" },
+                { key: "reach", label: reachLabel },
+                { key: "interactions", label: "Reações" },
+              ]}
+            />
           )}
         </div>
-
-        {view.window.posts > 0 && <Frequency view={view} />}
-      </div>
-
-      {view.window.posts > 0 && (
-      <div className="support-row">
-        <span className="support-item">
-          <Comment size={14} />
-          taxa de comentários <b>{e.commentsRate == null ? dash : `${formatRate(e.commentsRate, 2)}%`}</b>
-        </span>
-        {/* Was "curtidas : comentários 9 : 1", which nobody could parse. Same
-            number, said out loud. A lower figure means more conversation. */}
-        {e.likesPerComment != null && (
-          <span className="support-item">
-            <Heart size={14} />
-            <b>1</b> comentário a cada <b>{formatNumber(e.likesPerComment)}</b> curtidas
-          </span>
-        )}
-        {view.sendsPerReach != null && (
-          <span className="support-item">
-            <Users size={14} />
-            salvos + enviados / alcance <b>{formatRate(view.sendsPerReach)}%</b>
-          </span>
+        {s ? (
+          <>
+            <PeriodChart series={s} metric={metric} reachLabel={reachLabel} />
+            {since && (
+              <div className="chart-note">
+                <Info size={13} />
+                <Caption>
+                  Cobre os {view.content.all.length} posts mais recentes, publicados a partir de <b>{since}</b>. Períodos
+                  anteriores não estão no relatório, não é que não houve posts.
+                </Caption>
+              </div>
+            )}
+          </>
+        ) : (
+          <Caption>Sete dias não dão períodos para comparar. Amplie para 30 dias ou mais.</Caption>
         )}
       </div>
-      )}
 
-      {view.window.posts > 0 && (
-        <section className="block-chart">
-          <PeriodBlock view={view} />
-        </section>
-      )}
-
-      <section className="block-chart">
-        <div style={{ marginBottom: 14 }}>
-          <Eyebrow>Engajamento dia a dia</Eyebrow>
+      <div className="card chart-card">
+        <div className="chart-head">
+          <div>
+            <span className="label-lg">dia a dia</span>
+            <Caption>Taxa de engajamento da conta em cada dia, com os dias de publicação marcados.</Caption>
+          </div>
         </div>
         {e.trend.length >= 2 ? (
           <>
@@ -408,8 +543,6 @@ function Engagement({ view }: { view: PlatformView }) {
               format={(n) => `${formatRate(n)}%`}
               formatDetail={(n) => `${formatRate(n, 2)}%`}
               markers={view.published}
-              /* One percentage point. Day-to-day movement on the same posts is
-                 tiny, and without a floor the axis would magnify it into drama. */
               minSpan={1}
             />
             <CollectionNote trend={e.trend} windowDays={view.window.days} />
@@ -421,296 +554,62 @@ function Engagement({ view }: { view: PlatformView }) {
               : "A curva aparece assim que houver dois dias registrados."}
           </Caption>
         )}
-      </section>
-
-      {e.breakdown.length > 0 && (
-        <div style={{ marginTop: 26 }}>
-          <div style={{ marginBottom: 12 }}>
-            <Eyebrow>
-              Tipos de engajamento · soma dos {view.window.posts} posts ·{" "}
-              {rangeLabel(view.window.from, view.window.to)}
-            </Eyebrow>
-          </div>
-          <div
-            className="ruled breakdown-grid"
-            style={{ ["--cols" as any]: e.breakdown.length }}
-          >
-            {e.breakdown.map((b) => (
-              <div className="cell" key={b.kind}>
-                <span className="cell-label">
-                  <KindIcon kind={b.kind} size={13} />
-                  <span className="micro">{b.label}</span>
-                </span>
-                <span className="cell-count">{formatCount(b.count)}</span>
-              </div>
-            ))}
-          </div>
-          <Caption style={{ marginTop: 10 }}>
-            Soma dos {view.window.posts} posts do período. O ER usa a mediana por post, não a soma.
-            {/* The profile shows a lifetime figure. Naming it here is what stops
-                "os números não batem" — both numbers are right, they count
-                different things. */}
-            {view.lifetimeLikes != null && (
-              <>
-                {" "}Total da conta no perfil do {view.label}:{" "}
-                <b style={{ color: "var(--ink)" }}>{formatCount(view.lifetimeLikes)}</b> curtidas.
-              </>
-            )}
-          </Caption>
-        </div>
-      )}
-    </Section>
+      </div>
+    </section>
   );
 }
 
-/**
- * How often the account publishes, as big as the rate beside it: a gap in
- * posting is the most common reason that rate moves, so the two are read
- * together. Same figures as the Cadência block on the insights screen.
- */
-function Frequency({ view }: { view: PlatformView }) {
-  const c = useMemo(() => cadenceOf(view), [view]);
-  const rest = [
-    { key: "gap", label: "dias entre posts, mediana", value: c.medianGap == null ? dash : formatRate(c.medianGap, 1) },
-    { key: "max", label: "dias no maior intervalo", value: c.maxGap == null ? dash : String(Math.round(c.maxGap)) },
-    { key: "last", label: "último post", value: c.lastPostAt ? shortDate(c.lastPostAt) : dash },
-  ];
-
-  return (
-    <div className="hero-col hero-freq">
-      <span className="micro">Frequência</span>
-      <div className="hero-freq-main">
-        <span className="n">{c.perWeek == null ? dash : formatRate(c.perWeek, 1)}</span>
-        <span className="u">posts por semana</span>
-      </div>
-      <div className="hero-freq-rest">
-        {rest.map((r) => (
-          <div key={r.key}>
-            <span className="n">{r.value}</span>
-            <span className="caption">{r.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * The window cut into periods. This is the chart that answers "why is 30 days
- * excelente and 12 months bom": each column is the headline recomputed over
- * just the posts of that period, so the reader sees which months carried the
- * year and which dragged it. The daily curve below needs snapshots to exist;
- * this one only needs publish dates, so it's there from the first refresh.
- */
-function PeriodBlock({ view }: { view: PlatformView }) {
-  const [metric, setMetric] = useState<PeriodMetric>("er");
-  const s = view.periods;
-  const reachLabel = view.platform === "instagram" ? "Alcance" : "Views";
-
-  const METRICS: { key: PeriodMetric; label: string }[] = [
-    { key: "er", label: "ER" },
-    { key: "reach", label: reachLabel },
-    { key: "interactions", label: "Reações" },
-  ];
-
-  const unitLabel = s?.unit === "week" ? "semana a semana" : "mês a mês";
-  const since = s?.cappedSince
-    ? new Date(s.cappedSince).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
-    : null;
-
-  return (
-    <>
-      <div
-        style={{
-          display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-          gap: 16, flexWrap: "wrap", marginBottom: 14,
-        }}
-      >
-        <div>
-          <Eyebrow>Desempenho por período{s ? ` · ${unitLabel}` : ""}</Eyebrow>
-          <Caption style={{ marginTop: 6, maxWidth: 560 }}>
-            {metric === "er"
-              ? "Cada coluna é o ER dos posts publicados naquele período, na mesma conta do número grande acima."
-              : metric === "reach"
-              ? `${reachLabel} de um post típico de cada período, pela mediana.`
-              : "Reações de um post típico de cada período, pela mediana: curtidas, comentários e envios."}
-          </Caption>
-        </div>
-        {s && (
-          <div className="segbox" role="tablist" aria-label="Métrica por período">
-            {METRICS.map((m) => (
-              <button
-                key={m.key}
-                role="tab"
-                aria-selected={metric === m.key}
-                className="seg"
-                onClick={() => setMetric(m.key)}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {s ? (
-        <>
-          <PeriodChart series={s} metric={metric} reachLabel={reachLabel} />
-          {since && (
-            <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <Info size={13} />
-              <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--ink-500)" }}>
-                Cobre os {view.content.all.length} posts mais recentes, publicados a partir de{" "}
-                <b style={{ color: "var(--ink)" }}>{since}</b>. Períodos anteriores não estão no
-                relatório, não é que não houve posts.
-              </span>
-            </div>
-          )}
-        </>
-      ) : (
-        <Caption>Sete dias não dão períodos para comparar. Amplie para 30 dias ou mais.</Caption>
-      )}
-    </>
-  );
-}
-
-/**
- * The chart can only ever start where our collection started. Selecting twelve
- * months on an account we began tracking last week draws a week-long line under
- * a twelve-month heading, which reads as missing data rather than as data that
- * never existed. So it says which it is.
- */
+/** The chart can only ever start where our collection started; it says which. */
 function CollectionNote({ trend, windowDays }: { trend: { at: string }[]; windowDays: number }) {
   if (!trend.length) return null;
   const since = new Date(trend[0].at);
   const covered = (Date.now() - since.getTime()) / 864e5;
-  // More than a fifth of the window missing is worth flagging rather than
-  // leaving the reader to infer it from the axis.
   const short = covered < windowDays * 0.8;
   const label = since.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
 
   return (
-    <div
-      style={{
-        marginTop: 12, display: "flex", gap: 8, alignItems: "flex-start",
-        ...(short
-          ? { border: "1px solid var(--accent)", padding: "11px 13px" }
-          : {}),
-      }}
-    >
-      <Info size={13} className={short ? undefined : undefined} />
-      <span style={{ fontSize: 12.5, lineHeight: 1.5, color: short ? "var(--ink)" : "var(--ink-500)" }}>
+    <div className={`chart-note${short ? " warn" : ""}`}>
+      <Info size={13} />
+      <Caption style={short ? { color: "var(--ink)" } : undefined}>
         {short ? (
           <>
-            <b style={{ color: "var(--accent)" }}>Histórico disponível a partir de {label}.</b>{" "}
-            Sem dados anteriores a essa data. A curva se estende a cada dia registrado.
+            <b>Histórico disponível a partir de {label}.</b> Sem dados anteriores a essa data. A curva se estende a cada dia
+            registrado.
           </>
         ) : (
-          <>
-            Um ponto por dia desde {label}. Passe o mouse ou use as setas para ver cada dia.
-          </>
+          <>Um ponto por dia desde {label}. Passe o mouse ou use as setas para ver cada dia.</>
         )}
-      </span>
+      </Caption>
     </div>
   );
 }
 
-/* ──────────────── 02 · alcance & crescimento ──────────────── */
-
-function Reach({ view }: { view: PlatformView }) {
-  return (
-    <Section index={2} caption="o que o alcance está fazendo" title="alcance & crescimento">
-      <div className="ruled summary-grid">
-        {view.summary.map((m) => (
-          <div className="summary-cell" key={m.key}>
-            <span className="micro">{m.label}</span>
-            <Stat
-              value={
-                m.value == null
-                  ? dash
-                  : m.unit === "%" || m.unit === "/100"
-                  ? formatRate(m.value, m.unit === "/100" ? 0 : 1)
-                  : formatCount(m.value)
-              }
-              unit={m.value == null ? null : m.unit}
-              size={48}
-              color={m.key === "score" ? "var(--cobalt)" : undefined}
-            />
-            <div className="summary-foot">
-              <DeltaTag delta={m.delta} />
-              <VerdictChip verdict={m.verdict} />
-            </div>
-            <div className="spark-slot">
-              {m.trend && m.trend.length > 2 && (
-                <Sparkline
-                  data={m.trend.map((p) => p.value)}
-                  w={210}
-                  h={26}
-                  color="var(--ink-300)"
-                  label={`${m.label}: de ${formatNumber(m.trend[0].value)} a ${formatNumber(
-                    m.trend[m.trend.length - 1].value
-                  )}`}
-                />
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      {view.caveat && (
-        <p className="caption" style={{ marginTop: 14 }}>{view.caveat}</p>
-      )}
-    </Section>
-  );
-}
-
-/* ─────────────────────── 03 · conteúdo ─────────────────────── */
+/* ─────────────────── conteúdo ─────────────────── */
 
 function Content({ view }: { view: PlatformView }) {
   const c = view.content;
   const [filter, setFilter] = useState<"all" | "organic" | "paid">("all");
 
-  if (!c.all.length) {
-    return (
-      <Section index={3} caption="posts do período" title="conteúdo">
-        <Caption>Nenhum post com métricas nesse período.</Caption>
-      </Section>
-    );
-  }
-
   const shown = filter === "paid" ? c.paid : filter === "organic" ? c.organic : c.all;
-  const flagged = c.all.filter((p) => p.standout === "viral" || p.standout === "high").length;
-
-  const FILTERS = [
-    { key: "all" as const, label: "Todos", n: c.all.length },
-    { key: "organic" as const, label: "Orgânicos", n: c.organic.length },
-    { key: "paid" as const, label: "Publis", n: c.paid.length },
+  const filters = [
+    { key: "all", label: <>todos&nbsp;•&nbsp;{c.all.length}</> },
+    { key: "organic", label: <>orgânicos&nbsp;•&nbsp;{c.organic.length}</>, disabled: c.organic.length === 0 },
+    { key: "paid", label: <>publis&nbsp;•&nbsp;{c.paid.length}</>, disabled: c.paid.length === 0 },
   ];
 
   return (
-    <Section
-      index={3}
-      caption="posts do período"
-      title="conteúdo"
-      headRight={
-        <div className="segbox" role="tablist" aria-label="Filtrar posts">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              role="tab"
-              aria-selected={filter === f.key}
-              className="seg"
-              onClick={() => setFilter(f.key)}
-              disabled={f.n === 0}
-              style={f.n === 0 ? { opacity: 0.4, cursor: "default" } : undefined}
-            >
-              {f.label} · {f.n}
-            </button>
-          ))}
+    <section className="section">
+      <SectionHead title="conteúdo" />
+      {c.all.length > 0 && (
+        <div style={{ margin: "0 0 26px" }}>
+          <Seg label="Filtrar posts" value={filter} onChange={(k) => setFilter(k as typeof filter)} items={filters} />
         </div>
-      }
-    >
-      {shown.length === 0 ? (
-        <Caption>Nenhum post desse tipo no período.</Caption>
+      )}
+
+      {c.all.length === 0 ? (
+        <Caption style={{ paddingLeft: 10 }}>Nenhum post com métricas nesse período.</Caption>
+      ) : shown.length === 0 ? (
+        <Caption style={{ paddingLeft: 10 }}>Nenhum post desse tipo no período.</Caption>
       ) : (
         <div className="post-grid">
           {shown.map((p) => (
@@ -719,38 +618,54 @@ function Content({ view }: { view: PlatformView }) {
         </div>
       )}
 
-      <Caption style={{ marginTop: 18 }}>
-        {view.platform === "instagram"
-          ? "ER do post = (curtidas + comentários + salvos + enviados) ÷ seguidores."
-          : "ER do post = (curtidas + comentários + compartilhamentos) ÷ views."}{" "}
-        Ordenados por engajamento, do maior para o menor.{" "}
-        {c.confidence === "none" ? (
-          <>
-            {c.all.length} {c.all.length === 1 ? "post" : "posts"} no período.
-          </>
-        ) : c.confidence === "weak" ? (
-          <>{c.all.length} posts no período. Marcações exigem desvio maior nesse volume.</>
-        ) : (
-          <>
-            Viral: entrega acima de 5x a base de seguidores. Acima da média: 1 desvio acima da
-            mediana do perfil. Abaixo da média: 2 desvios abaixo.
-          </>
-        )}
-      </Caption>
-
-      {c.paid.length > 0 && filter !== "organic" && (
-        <Caption style={{ marginTop: 10 }}>
-          Publi identificada por hashtag na descrição: #publi, #publicidade, #ad, #ads, #paid,
-          #parceria, #publipost, #recebido. Sem a hashtag, o post consta como orgânico.
+      {c.all.length > 0 && (
+        <Caption style={{ marginTop: 22, paddingLeft: 10, maxWidth: 820 }}>
+          {view.platform === "instagram"
+            ? "ER do post = (curtidas + comentários + salvos + enviados) ÷ seguidores."
+            : "ER do post = (curtidas + comentários + compartilhamentos) ÷ views."}{" "}
+          Ordenados por engajamento, do maior para o menor.{" "}
+          {c.confidence === "none" ? (
+            <>
+              {c.all.length} {c.all.length === 1 ? "post" : "posts"} no período.
+            </>
+          ) : c.confidence === "weak" ? (
+            <>{c.all.length} posts no período. Marcações exigem desvio maior nesse volume.</>
+          ) : (
+            <>
+              Viral: entrega acima de 5x a base de seguidores. Acima da média: 1 desvio acima da mediana do perfil. Abaixo
+              da média: 2 desvios abaixo.
+            </>
+          )}
+          {c.paid.length > 0 && filter !== "organic" && (
+            <>
+              {" "}Publi identificada por hashtag na legenda: #publi, #publicidade, #ad, #ads, #paid, #parceria, #publipost,
+              #recebido. Sem a hashtag, o post consta como orgânico.
+            </>
+          )}
         </Caption>
       )}
-    </Section>
+    </section>
   );
 }
 
 function PostTile({ post, platform }: { post: Post; platform: "instagram" | "tiktok" }) {
   const paid = isPaid(post);
   const Wrapper = post.permalink ? "a" : "div";
+  const flags: { key: string; cls: string; text: string }[] = [];
+  if (paid) flags.push({ key: "paid", cls: "paid", text: "publi" });
+  if (post.standout)
+    flags.push({
+      key: "standout",
+      cls: post.standout,
+      text:
+        post.standout === "viral"
+          ? post.reachMultiple && post.reachMultiple >= 5
+            ? `viral · ${Math.round(post.reachMultiple)}× a base`
+            : "viral"
+          : post.standout === "high"
+          ? "acima da média"
+          : "abaixo da média",
+    });
 
   return (
     <Wrapper
@@ -760,239 +675,251 @@ function PostTile({ post, platform }: { post: Post; platform: "instagram" | "tik
       <div className={`post-media ${platform === "instagram" ? "ig" : "tt"}`}>
         {post.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={post.thumbnailUrl} alt="" />
+          <img src={post.thumbnailUrl} alt="" loading="lazy" />
         ) : (
-          <div className={`post-hatch${post.standout === "low" ? " lower" : ""}`}>
+          <div className="post-hatch">
             <FormatIcon format={post.format} size={26} />
           </div>
         )}
         <span className="post-chip">
-          <FormatIcon format={post.format} size={12} />
+          <AngleRight size={8} />
           {post.formatLabel}
         </span>
-        {paid && <span className="post-publi">Publi</span>}
-        {post.standout && (
-          <span className={`post-flag ${post.standout}`} style={{ top: paid ? 56 : 30 }}>
-            {post.standout === "viral"
-              ? post.reachMultiple && post.reachMultiple >= 5
-                ? `Viral · ${Math.round(post.reachMultiple)}× a base`
-                : "Viral"
-              : post.standout === "high"
-              ? "Acima da média"
-              : "Abaixo da média"}
+        {flags.map((f, i) => (
+          <span key={f.key} className={`post-flag ${f.cls}`} style={{ top: 25 + i * 22 }}>
+            {f.text}
           </span>
-        )}
-        {post.er != null && (
-          <span className={`post-er${post.standout === "low" ? " lower" : ""}`}>ER {formatRate(post.er, 2)}%</span>
-        )}
-        {/* Every input to the badge, so the number is always checkable. */}
+        ))}
         <span className="post-stats">
           {platform === "tiktok" && post.views != null && (
-            <span className="post-stat"><Eye size={12} />{formatCount(post.views)}</span>
+            <span className="post-stat">
+              <Eye size={12} />
+              {formatCount(post.views)}
+            </span>
           )}
-          <span className="post-stat"><Heart size={12} />{formatCount(post.likes)}</span>
-          <span className="post-stat"><Comment size={12} />{formatCount(post.comments)}</span>
-          {post.sends != null && (
-            <span className="post-stat"><Send size={12} />{formatCount(post.sends)}</span>
+          <span className="post-stat">
+            <Heart size={12} />
+            {formatCount(post.likes)}
+          </span>
+          <span className="post-stat">
+            <Comment size={12} />
+            {formatCount(post.comments)}
+          </span>
+          {platform === "instagram" && post.saves != null && (
+            <span className="post-stat">
+              <Bookmark size={12} />
+              {formatCount(post.saves)}
+            </span>
+          )}
+          {post.shares != null && (
+            <span className="post-stat">
+              <Send size={12} />
+              {formatCount(post.shares)}
+            </span>
           )}
         </span>
       </div>
-      {post.caption && <p className="post-cap">{post.caption}</p>}
+      <div className="post-foot">
+        <span className="post-cap" title={post.caption}>
+          <File size={12} />
+          <span>{post.caption || post.formatLabel}</span>
+        </span>
+        {post.er != null && (
+          <span className={`post-er${post.standout === "low" ? " low" : ""}`}>
+            ER <b>{formatRate(post.er, 2)}%</b>
+          </span>
+        )}
+      </div>
     </Wrapper>
   );
 }
 
-/* ──────────────── 04 · detalhes de audiência ──────────────── */
+/* ─────────────────── audiência ─────────────────── */
 
-function Disclosure({
-  index,
-  title,
-  subtitle,
-  children,
-}: {
-  index: number;
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const id = `disc-${index}`;
-
-  return (
-    <div className="disclosure">
-      <div>
-        <button
-          className="disclosure-btn"
-          aria-expanded={open}
-          aria-controls={id}
-          onClick={() => setOpen((o) => !o)}
-        >
-          <span>
-            <span className="disclosure-title">{title}</span>
-            <span className="disclosure-sub" style={{ display: "block" }}>{subtitle}</span>
-          </span>
-          <span className="chev"><ChevronDown size={18} /></span>
-        </button>
-        {open && <div className="disclosure-body" id={id}>{children}</div>}
-      </div>
-      <div className="section-index" aria-hidden="true" style={{ paddingTop: 26 }}>
-        {String(index).padStart(2, "0")}
-      </div>
-    </div>
-  );
+/**
+ * Instagram reports seven age brackets; the design draws four. Everything
+ * from 45 up folds into "45+", and slices under half a percent are dropped.
+ */
+function ageGroups(age: { label: string; pct: number }[]) {
+  const out: { label: string; pct: number }[] = [];
+  for (const a of age) {
+    const from = parseInt(a.label, 10);
+    if (Number.isFinite(from) && from >= 45) {
+      const last = out[out.length - 1];
+      if (last && last.label === "45+") last.pct += a.pct;
+      else out.push({ label: "45+", pct: a.pct });
+    } else out.push({ label: a.label, pct: a.pct });
+  }
+  return out.filter((s) => s.pct >= 0.5);
 }
 
-function AudienceDisclosure({
-  index,
-  audience,
-  platform,
-}: {
-  index: number;
-  audience: Audience | null;
-  platform: "instagram" | "tiktok";
-}) {
+/** Top N plus an "Outros" row for the rest, as in the design. */
+function topWithOthers(rows: { name: string; pct: number }[], n: number) {
+  const top = rows.slice(0, n);
+  const rest = rows.slice(n).reduce((a, r) => a + r.pct, 0);
+  return rest >= 0.5 ? [...top, { name: "Outros", pct: rest }] : top;
+}
+
+function AudienceSection({ audience, platform }: { audience: Audience | null; platform: "instagram" | "tiktok" }) {
+  const blocks: { key: string; title: string; body: React.ReactNode; center?: boolean }[] = [];
+
+  if (audience) {
+    blocks.push({
+      key: "age",
+      title: "idade",
+      body:
+        audience.age.length > 0 ? (
+          <Donut slices={ageGroups(audience.age)} />
+        ) : (
+          <span className="aud-empty">Sem faixa etária reportada.</span>
+        ),
+    });
+    blocks.push({
+      key: "gender",
+      title: "gênero",
+      center: true,
+      body: audience.gender ? (
+        <>
+          <div className="gender">
+            <div className="v">{Math.round(audience.gender.female)}%</div>
+            <div className="l">feminino</div>
+          </div>
+          <div className="gender">
+            <div className="v">{Math.round(audience.gender.male)}%</div>
+            <div className="l">masculino</div>
+          </div>
+          {audience.gender.other != null && audience.gender.other >= 0.5 && (
+            <div className="gender">
+              <div className="v">{Math.round(audience.gender.other)}%</div>
+              <div className="l">outros</div>
+            </div>
+          )}
+        </>
+      ) : (
+        <span className="aud-empty">Sem gênero reportado.</span>
+      ),
+    });
+    blocks.push({
+      key: "cities",
+      title: "localização",
+      body:
+        audience.cities.length > 0 ? (
+          <div className="bars">
+            {topWithOthers(audience.cities, 4).map((c) => (
+              <Bar key={c.name} label={c.name} pct={c.pct} />
+            ))}
+          </div>
+        ) : (
+          <span className="aud-empty">As cidades aparecem na próxima atualização automática do Instagram.</span>
+        ),
+    });
+    blocks.push({
+      key: "countries",
+      title: "países",
+      body:
+        audience.geography.length > 0 ? (
+          <div className="bars">
+            {topWithOthers(audience.geography, 3).map((c) => (
+              <Bar key={c.name} label={c.name} pct={c.pct} />
+            ))}
+          </div>
+        ) : (
+          <span className="aud-empty">Sem país reportado.</span>
+        ),
+    });
+  }
+
   return (
-    <Disclosure index={index} title="detalhes de audiência" subtitle="geografia · idade & gênero">
+    <section className="section">
+      <SectionHead title="audiência" />
       {!audience ? (
-        <Caption>
+        <div className="notice">
+          <span className="micro">{platform === "tiktok" ? "instagram apenas" : "sem dados ainda"}</span>
           {platform === "tiktok"
-            ? "A API do TikTok não expõe dados demográficos da audiência. Os números abaixo, quando existirem, vêm do Instagram."
-            : "O Instagram só reporta dados demográficos para contas com mais de 100 seguidores."}
-        </Caption>
+            ? "A API do TikTok não expõe dados demográficos da audiência. Idade, gênero e localização vêm só do Instagram."
+            : "O Instagram só reporta dados demográficos para contas com mais de 100 seguidores. Eles aparecem na próxima atualização."}
+        </div>
       ) : (
         <>
-          {audience.summary && (
-            <p style={{ fontSize: 15, marginBottom: 18 }}>{audience.summary}</p>
-          )}
-          <div className="audience-grid">
-            {audience.geography.length > 0 && (
-              <div>
-                <div className="bar-block-head"><span className="micro">Geografia</span></div>
-                <div style={{ display: "grid", gap: 11 }}>
-                  {audience.geography.filter((g) => g.pct >= 1).slice(0, 6).map((g) => (
-                    <BarRow
-                      key={g.name}
-                      label={g.name}
-                      pct={g.pct}
-                      color={g.name === "Brasil" ? "var(--cobalt)" : "var(--ink-300)"}
-                    />
-                  ))}
-                </div>
+          <div className="aud-grid">
+            {blocks.map((b) => (
+              <div className="aud-block" key={b.key}>
+                <h3 className="h3">{b.title}</h3>
+                <div className={`aud-card${b.center ? " center" : ""}`}>{b.body}</div>
               </div>
-            )}
-            {audience.age.length > 0 && (
-              <div>
-                <div className="bar-block-head">
-                  <span className="micro">
-                    Idade & gênero
-                    {audience.gender &&
-                      ` · ${Math.round(audience.gender.female)}% F / ${Math.round(audience.gender.male)}% M`}
-                  </span>
-                </div>
-                <div style={{ display: "grid", gap: 11 }}>
-                  {audience.age.filter((a) => a.pct >= 1).map((a) => (
-                    <BarRow key={a.label} label={a.label} pct={a.pct} color="var(--ink)" />
-                  ))}
-                </div>
-              </div>
-            )}
+            ))}
           </div>
-          <p className="caption" style={{ marginTop: 18 }}>
-            Dados dos seguidores, não das pessoas alcançadas por um post.
-          </p>
+          <Caption style={{ marginTop: 14, paddingLeft: 10 }}>
+            Dados dos seguidores no Instagram, não das pessoas alcançadas por um post.
+            {audience.summary && (
+              <>
+                {" "}Resumo: <b>{audience.summary}</b>.
+              </>
+            )}
+          </Caption>
         </>
       )}
-    </Disclosure>
+    </section>
   );
 }
 
-/* ──────────────────── 05 · histórico ──────────────────── */
+/* ─────────────────── histórico ─────────────────── */
 
-function HistoryDisclosure({ index, view }: { index: number; view: PlatformView }) {
+function History({ view }: { view: PlatformView }) {
+  const [open, setOpen] = useState(false);
   const trend = view.summary.find((m) => m.key === "followers")?.trend ?? [];
   const growth = view.summary.find((m) => m.key === "growth")?.value ?? null;
 
   return (
-    <Disclosure index={index} title="histórico" subtitle="seguidores e crescimento desde o início do acompanhamento">
-      {trend.length < 2 ? (
-        <Caption>
-          O histórico começa a acumular a partir da primeira atualização e é registrado diariamente.
-          A curva e a variação de 30 dias aparecem assim que houver dias suficientes.
-        </Caption>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingTop: 20 }}>
-          <div style={{ display: "flex", gap: 56, flexWrap: "wrap" }}>
-            <div>
-              <div className="micro">Seguidores hoje</div>
-              <div className="display" style={{ fontSize: 44, lineHeight: 0.9, marginTop: 8 }}>
-                {formatCount(view.followers)}
-              </div>
-            </div>
-            {growth != null && (
-              <div>
-                <div className="micro">Crescimento · 30 dias</div>
-                <div className="display" style={{ fontSize: 44, lineHeight: 0.9, marginTop: 8 }}>
-                  {formatRate(growth)}%
+    <section className="section">
+      <div className="disc">
+        <button className="disc-btn" aria-expanded={open} aria-controls="historico" onClick={() => setOpen((o) => !o)}>
+          <span>
+            <span className="h3">histórico</span>
+            <span className="disc-sub">seguidores e crescimento desde o início do acompanhamento</span>
+          </span>
+          <span className="disc-chev">
+            <ChevronDown size={18} />
+          </span>
+        </button>
+        {open && (
+          <div className="disc-body" id="historico">
+            {trend.length < 2 ? (
+              <Caption style={{ paddingTop: 18 }}>
+                O histórico começa a acumular a partir da primeira atualização e é registrado diariamente. A curva e a
+                variação de 30 dias aparecem assim que houver dias suficientes.
+              </Caption>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 22, paddingTop: 20 }}>
+                <div className="freq" style={{ gridTemplateColumns: "repeat(2, auto)", justifyContent: "start", gap: 48 }}>
+                  <div>
+                    <div className="v">{formatCount(view.followers)}</div>
+                    <div className="l">seguidores hoje</div>
+                  </div>
+                  {growth != null && (
+                    <div>
+                      <div className="v">{formatRate(growth)}%</div>
+                      <div className="l">crescimento em 30 dias</div>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Chart
+                    points={trend}
+                    label="seguidores"
+                    format={(n) => formatNumber(n)}
+                    minSpan={Math.max(40, (view.followers ?? 0) * 0.01)}
+                  />
+                  <div className="chart-note">
+                    <Info size={13} />
+                    <Caption>Um ponto por dia. Atualizações manuais no mesmo dia não criam pontos extras.</Caption>
+                  </div>
                 </div>
               </div>
             )}
           </div>
-          <div>
-            <div className="micro" style={{ marginBottom: 12 }}>Seguidores · dia a dia</div>
-            <Chart
-              points={trend}
-              label="seguidores"
-              format={(n) => formatNumber(n)}
-              /* Followers barely move day to day on a nano account; without a
-                 floor, a handful of unfollows would look like a collapse. */
-              minSpan={Math.max(40, (view.followers ?? 0) * 0.01)}
-            />
-            <Caption style={{ marginTop: 10 }}>
-              Um ponto por dia. Toque, passe o mouse ou use as setas para ver o valor de cada dia.
-            </Caption>
-          </div>
-          <span style={{ display: "inline-flex", alignItems: "flex-start", gap: 8 }}>
-            <Info size={13} />
-            <Caption>Um ponto por dia. Atualizações manuais no mesmo dia não criam pontos extras.</Caption>
-          </span>
-        </div>
-      )}
-    </Disclosure>
-  );
-}
-
-/* ──────────────── 06 · como o score é montado ──────────────── */
-
-function ScoreDisclosure({ index, view }: { index: number; view: PlatformView }) {
-  return (
-    <Disclosure
-      index={index}
-      title="como o score é montado"
-      subtitle="engajamento · alcance · impacto · consistência"
-    >
-      <div style={{ paddingTop: 20, display: "flex", flexDirection: "column", gap: 18 }}>
-        <div className="ruled summary-grid">
-          {view.components.map((c) => (
-            <div className="cell" key={c.key} style={{ padding: 16 }}>
-              <span className="micro">{c.label} · {Math.round(c.weight * 100)}%</span>
-              <span className="cell-count">{c.score ?? dash}</span>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>{c.display}</span>
-              <span className="caption">normal: {c.benchmark}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{ display: "grid", gap: 12 }}>
-          {view.components.map((c) => (
-            <p className="caption" key={c.key}>
-              <b style={{ color: "var(--ink)" }}>{c.label}.</b> {c.note}
-            </p>
-          ))}
-        </div>
-        <Caption>
-          Escala igual em todos os componentes: 50 é o piso do normal, 80 o topo, 100 o dobro do
-          topo. Componentes sem dados ficam de fora e os demais são repesados.
-        </Caption>
+        )}
       </div>
-    </Disclosure>
+    </section>
   );
 }

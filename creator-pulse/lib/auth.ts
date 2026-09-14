@@ -12,8 +12,12 @@ const cookieOpts = {
   maxAge: 60 * 60 * 24 * 30, // 30 days
 };
 
-export function setInfluencerSession(id: string) {
-  cookies().set(INF, sign(id), cookieOpts);
+/**
+ * `remember` keeps the cookie for 30 days; without it the session ends when
+ * the browser closes ("me manter conectado" on the login screen).
+ */
+export function setInfluencerSession(id: string, remember = true) {
+  cookies().set(INF, sign(id), remember ? cookieOpts : { ...cookieOpts, maxAge: undefined });
 }
 
 export function getInfluencerId(): string | null {
@@ -25,8 +29,8 @@ export function getInfluencerId(): string | null {
  * Two ways in: a named admin account (id from the admins table) or the shared
  * agency password, which signs in as "shared". Both carry the same rights.
  */
-export function setAdminSession(adminId: string = "shared") {
-  cookies().set(ADM, sign(`admin:${adminId}`), cookieOpts);
+export function setAdminSession(adminId: string = "shared", remember = true) {
+  cookies().set(ADM, sign(`admin:${adminId}`), remember ? cookieOpts : { ...cookieOpts, maxAge: undefined });
 }
 
 export function getAdminId(): string | null {

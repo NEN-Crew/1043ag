@@ -11,20 +11,21 @@ export const runtime = "nodejs";
  * to know which kind of account it just signed in.
  */
 export async function POST(req: Request) {
-  const { email, password } = await req.json();
+  const { email, password, remember } = await req.json();
+  const keep = remember !== false;
   const needle = String(email ?? "").trim().toLowerCase();
 
   const inf = (await sql`select id, password_hash from influencers where lower(email) = ${needle}`)[0] as any;
   if (inf && verifyPassword(password ?? "", inf.password_hash)) {
     clearSessions();
-    setInfluencerSession(inf.id);
+    setInfluencerSession(inf.id, keep);
     return NextResponse.json({ ok: true, redirect: "/me" });
   }
 
   const adm = (await sql`select id, password_hash from admins where lower(email) = ${needle}`)[0] as any;
   if (adm && verifyPassword(password ?? "", adm.password_hash)) {
     clearSessions();
-    setAdminSession(adm.id);
+    setAdminSession(adm.id, keep);
     return NextResponse.json({ ok: true, redirect: "/admin" });
   }
 

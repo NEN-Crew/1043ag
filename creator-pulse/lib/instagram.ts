@@ -121,7 +121,7 @@ async function accountInsights(accessToken: string) {
 // which we treat as "no data". One request per breakdown dimension.
 async function followerDemographics(accessToken: string) {
   const out: Record<string, { key: string; value: number }[]> = {};
-  for (const breakdown of ["age", "gender", "country"]) {
+  for (const breakdown of ["age", "gender", "country", "city"]) {
     const res = await fetch(
       `${GRAPH}/me/insights?` +
         new URLSearchParams({

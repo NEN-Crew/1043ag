@@ -3,7 +3,6 @@ import { getInfluencerId, isAdmin } from "@/lib/auth";
 import { forCreator, getReport } from "@/lib/report";
 import { parseWindow } from "@/lib/metrics";
 import CreatorView from "@/components/CreatorView";
-import TopBar from "@/components/TopBar";
 import { Caption } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function MePage({
   searchParams,
 }: {
-  searchParams: { connected?: string; connect?: string; janela?: string };
+  searchParams: { connected?: string; connect?: string; janela?: string; rede?: string };
 }) {
   const id = getInfluencerId();
   if (!id) redirect(isAdmin() ? "/admin" : "/login");
@@ -24,51 +23,41 @@ export default async function MePage({
   const { connected } = report;
   const allConnected = connected.instagram && connected.tiktok;
 
-  return (
+  const notices = (
     <>
-      <TopBar view="creator" />
-      <main className="shell">
-        {searchParams.connected && (
-          <div className="notice" style={{ marginBottom: 20, borderColor: "var(--cobalt)", color: "var(--cobalt)" }}>
-            {searchParams.connected === "instagram" ? "Instagram" : "TikTok"} conectado. Seus números estão abaixo.
-          </div>
-        )}
-        {searchParams.connect === "error" && (
-          <div className="notice warn" style={{ marginBottom: 20 }}>
-            A conexão não foi concluída. Tente de novo ou fale com a agência.
-          </div>
-        )}
-
-        <CreatorView report={report} variant="self" windowDays={windowDays} />
-
-        {!allConnected && (
-          <section className="section">
-            <div className="section-body">
-              <span className="micro">
-                {connected.instagram || connected.tiktok ? "Conectar a outra rede" : "Conectar suas redes"}
-              </span>
-              <Caption style={{ margin: "10px 0 16px", maxWidth: 520 }}>
-                Você será levado à plataforma para autorizar o acesso. Lemos apenas suas
-                estatísticas. Nunca publicamos nada.
-              </Caption>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                {!connected.instagram && (
-                  <a className="btn" href="/api/connect/instagram/start">Conectar Instagram</a>
-                )}
-                {!connected.tiktok && (
-                  <a className="btn" href="/api/connect/tiktok/start">Conectar TikTok</a>
-                )}
-              </div>
-            </div>
-            <div className="section-index" aria-hidden="true">+</div>
-          </section>
-        )}
-
-        <div className="footer">
-          <span>1043 AG · creator performance</span>
-          <span>fim do relatório</span>
+      {searchParams.connected && (
+        <div className="notice good" style={{ marginTop: 28 }}>
+          {searchParams.connected === "instagram" ? "Instagram" : "TikTok"} conectado. Seus números estão abaixo.
         </div>
-      </main>
+      )}
+      {searchParams.connect === "error" && (
+        <div className="notice warn" style={{ marginTop: 28 }}>
+          A conexão não foi concluída. Tente de novo ou fale com a agência.
+        </div>
+      )}
     </>
   );
+
+  const after = !allConnected ? (
+    <section className="section">
+      <div className="card">
+        <h3 className="h3">
+          {connected.instagram || connected.tiktok ? "conectar a outra rede" : "conectar suas redes"}
+        </h3>
+        <Caption style={{ margin: "10px 0 18px", maxWidth: 520 }}>
+          Você será levado à plataforma para autorizar o acesso. Lemos apenas suas estatísticas. Nunca publicamos nada.
+        </Caption>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {!connected.instagram && (
+            <a className="btn cobalt" href="/api/connect/instagram/start">conectar instagram</a>
+          )}
+          {!connected.tiktok && (
+            <a className="btn cobalt" href="/api/connect/tiktok/start">conectar tiktok</a>
+          )}
+        </div>
+      </div>
+    </section>
+  ) : null;
+
+  return <CreatorView report={report} variant="self" windowDays={windowDays} notices={notices} after={after} />;
 }

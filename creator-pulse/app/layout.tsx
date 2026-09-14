@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, Courier_Prime } from "next/font/google";
+import { DM_Serif_Display } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
-// Self-hosted via next/font — the design depends on these two faces and
-// nothing else, so a hotlink that fails would break the whole identity.
+// Three faces, all self-hosted. The Figma uses PP Kyoto (serif), PP Neue
+// Montreal (sans) and PP Neue Montreal Mono / Geist Mono; these are the
+// closest open equivalents and the rest of the system is built on them.
 const display = DM_Serif_Display({
   weight: "400",
   subsets: ["latin"],
   display: "swap",
   variable: "--font-dm-serif",
-});
-
-const mono = Courier_Prime({
-  weight: ["400", "700"],
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-courier-prime",
 });
 
 export const metadata: Metadata = {
@@ -25,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${display.variable} ${mono.variable}`}>
+    <html lang="pt-BR" className={`${display.variable} ${GeistSans.variable} ${GeistMono.variable}`}>
       <body>{children}</body>
     </html>
   );

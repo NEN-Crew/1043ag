@@ -3,16 +3,16 @@ import LoginForm from "@/components/LoginForm";
 export default function LoginPage() {
   return (
     <main className="auth">
-      <div className="auth-card">
-        <div className="wordmark" style={{ marginBottom: 6 }}>1043 AG</div>
-        <p className="caption" style={{ marginBottom: 24 }}>
-          Entre para ver a performance das suas redes.
-        </p>
+      <div className="auth-box">
+        <div className="auth-logo">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/1043tm.png" alt="1043" width={191} height={102} />
+        </div>
         <LoginForm />
-        <p className="caption" style={{ textAlign: "center", marginTop: 20, fontSize: 11 }}>
-          <a href="/terms" style={{ textDecoration: "underline" }}>Termos de uso</a>
-          {" · "}
-          <a href="/privacy" style={{ textDecoration: "underline" }}>Política de privacidade</a>
+        <p className="auth-legal">
+          ao entrar, você concorda com os
+          <br />
+          <a href="/terms">termos de uso</a> e <a href="/privacy">políticas de privacidade</a>
         </p>
       </div>
     </main>

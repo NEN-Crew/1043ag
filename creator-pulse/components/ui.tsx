@@ -2,104 +2,113 @@ import type { Delta, Verdict } from "@/lib/metrics";
 import { formatDelta } from "@/lib/format";
 
 /**
- * The editorial primitives every section is assembled from. Building these
- * first is what keeps the grammar consistent — a section that reaches past
- * them for a one-off style is how a system like this comes apart.
+ * The primitives every screen is assembled from. Keeping them here is what
+ * keeps the grammar consistent: a screen that reaches past them for a one-off
+ * style is how a system like this comes apart.
  */
-
-export function Eyebrow({ children, onDark }: { children: React.ReactNode; onDark?: boolean }) {
-  return <div className={`eyebrow${onDark ? " on-dark" : ""}`}>{children}</div>;
-}
 
 export function Caption({
   children,
-  onDark,
   style,
+  className,
 }: {
   children: React.ReactNode;
-  onDark?: boolean;
   style?: React.CSSProperties;
+  className?: string;
 }) {
-  return <p className={`caption${onDark ? " on-dark" : ""}`} style={style}>{children}</p>;
+  return <p className={`caption${className ? ` ${className}` : ""}`} style={style}>{children}</p>;
 }
 
-/** The frame every section uses: content column + a numbered right gutter. */
-export function Section({
-  index,
-  title,
-  caption,
-  headRight,
-  first,
-  children,
-}: {
-  index: number;
-  title: string;
-  caption?: string;
-  headRight?: React.ReactNode;
-  first?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={`section${first ? " first" : ""}`}>
-      <div className="section-body">
-        <div className="section-head">
-          <div>
-            {caption && <Eyebrow>{caption}</Eyebrow>}
-            <h2 className="sec-title" style={{ marginTop: caption ? 10 : 0 }}>{title}</h2>
-          </div>
-          {headRight}
-        </div>
-        <div style={{ marginTop: 26 }}>{children}</div>
-      </div>
-      <div className="section-index" aria-hidden="true">{String(index).padStart(2, "0")}</div>
-    </section>
-  );
+/** A grey mono chip: "excelente", "bom", "na média". Never coloured. */
+export function Chip({ children, tone }: { children: React.ReactNode; tone?: "dark" | "cobalt" }) {
+  return <span className={`chip${tone ? ` ${tone}` : ""}`}>{children}</span>;
 }
 
-/** A big serif number with a small mono unit sitting on its baseline. */
-export function Stat({
-  value,
-  unit,
-  size = 48,
-  color,
-}: {
-  value: string;
-  unit?: string | null;
-  size?: number;
-  color?: string;
-}) {
-  return (
-    <span className="stat">
-      <span className="stat-value" style={{ fontSize: size, color }}>{value}</span>
-      {unit && <span className="stat-unit" style={{ fontSize: Math.max(13, size * 0.26) }}>{unit}</span>}
-    </span>
-  );
+export function VerdictChip({ verdict }: { verdict: Verdict | null | undefined }) {
+  if (!verdict) return null;
+  return <Chip>{verdict.label.toLowerCase()}</Chip>;
 }
 
-/** ▲ cobalt / ▼ orange-red. The glyph comes from CSS so it can't disagree. */
+/** ▲ cobalt / ▼ grey. The glyph comes from CSS so it can't disagree. */
 export function DeltaTag({ delta, suffix }: { delta: Delta | null | undefined; suffix?: string }) {
   if (!delta) return null;
   return (
     <span className={`delta ${delta.dir}`}>
       {formatDelta(delta.value, delta.unit)}
-      {suffix && <span style={{ fontWeight: 400, color: "var(--ink-500)" }}>{suffix}</span>}
+      {suffix && <span className="sfx">{suffix}</span>}
     </span>
   );
 }
 
-export function VerdictChip({ verdict, note }: { verdict: Verdict | null | undefined; note?: string }) {
-  if (!verdict) return null;
+/** Section title row: serif heading on the left, an optional control on the right. */
+export function SectionHead({
+  title,
+  right,
+  id,
+}: {
+  title: string;
+  right?: React.ReactNode;
+  id?: string;
+}) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-      <span className={`verdict ${verdict.tone}`}>{verdict.label}</span>
-      {note && <span className="caption">{note}</span>}
-    </span>
+    <div className="section-head" id={id}>
+      <h2 className="h2">{title}</h2>
+      {right}
+    </div>
+  );
+}
+
+/** A segmented control. `cobalt` colours the active item cobalt instead of ink. */
+export function Seg({
+  items,
+  value,
+  onChange,
+  label,
+  cobalt,
+  small,
+}: {
+  items: { key: string; label: React.ReactNode; disabled?: boolean; title?: string }[];
+  value: string;
+  onChange: (key: string) => void;
+  label: string;
+  cobalt?: boolean;
+  small?: boolean;
+}) {
+  return (
+    <div className={`seg${cobalt ? " cobalt" : ""}${small ? " sm" : ""}`} role="tablist" aria-label={label}>
+      {items.map((it) => (
+        <button
+          key={it.key}
+          role="tab"
+          aria-selected={value === it.key}
+          disabled={it.disabled}
+          title={it.title}
+          onClick={() => onChange(it.key)}
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The dotted spinner from the Figma loading frame. */
+export function Spinner({ small }: { small?: boolean }) {
+  const dots = Array.from({ length: 8 }, (_, i) => {
+    const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+    return { x: 25 + Math.cos(a) * 18.6, y: 25 + Math.sin(a) * 18.6, r: i === 0 ? 6.3 : 6.1 };
+  });
+  return (
+    <svg className={`spinner${small ? " sm" : ""}`} viewBox="0 0 50 50" aria-hidden="true">
+      {dots.map((d, i) => (
+        <circle key={i} cx={d.x} cy={d.y} r={d.r} fill={i === 0 ? "#000" : "#d9d9d9"} />
+      ))}
+    </svg>
   );
 }
 
 /**
- * Stroke-only sparkline. A 5×5 square marks the final point — a circle reads
- * as a different system's mark, and this one is all right angles.
+ * Stroke-only sparkline. Three points minimum: two is a slope, not a trend.
  */
 export function Sparkline({
   data,
@@ -107,7 +116,6 @@ export function Sparkline({
   w = 180,
   h = 44,
   strokeW = 1.5,
-  baseline,
   label,
 }: {
   data: number[];
@@ -115,24 +123,18 @@ export function Sparkline({
   w?: number;
   h?: number;
   strokeW?: number;
-  baseline?: boolean;
   label?: string;
 }) {
-  // Two points is a slope, not a trend — drawing it invites reading a story
-  // into a single day's movement.
   if (!data || data.length < 3) return null;
-
   const min = Math.min(...data);
   const max = Math.max(...data);
   const span = max - min || 1;
   const inset = 3;
   const x = (i: number) => (i / (data.length - 1)) * w;
   const y = (v: number) => h - inset - ((v - min) / span) * (h - inset * 2);
-
   const d = data.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
   const lastX = Math.min(x(data.length - 1), w - 3);
   const lastY = y(data[data.length - 1]);
-
   return (
     <svg
       width="100%"
@@ -143,29 +145,62 @@ export function Sparkline({
       aria-label={label ?? "tendência"}
       style={{ maxWidth: w, display: "block", overflow: "visible" }}
     >
-      {baseline && <line x1="0" y1={h - 0.5} x2={w} y2={h - 0.5} stroke="var(--line)" strokeWidth="1" />}
       <path d={d} fill="none" stroke={color} strokeWidth={strokeW} strokeLinejoin="round" strokeLinecap="round" />
-      <rect x={lastX - 2.5} y={lastY - 2.5} width="5" height="5" fill={color} />
+      <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
     </svg>
   );
 }
 
-export function BarRow({
-  label,
-  pct,
-  color = "var(--cobalt)",
-}: {
-  label: string;
-  pct: number;
-  color?: string;
-}) {
+/** A pill bar with the share on the left and the name on the right, as in the audience cards. */
+export function Bar({ label, pct, max = 100 }: { label: string; pct: number; max?: number }) {
+  const width = Math.max(0, Math.min(100, (pct / Math.max(1, max)) * 100));
   return (
-    <div className="bar-row">
-      <span className="bar-key" title={label}>{label}</span>
+    <div className="bar">
       <span className="bar-track">
-        <span className="bar-fill" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }} />
+        <span className="bar-fill" style={{ width: `${width}%` }} />
       </span>
-      <span className="bar-val">{Math.round(pct)}%</span>
+      <b>{Math.round(pct)}%</b>
+      <span title={label}>{label}</span>
+    </div>
+  );
+}
+
+const DONUT = ["var(--cobalt-2)", "var(--tint-1)", "var(--tint-2)", "var(--tint-3)", "#b9c8ff", "#d6dfff"];
+
+/** The age donut: four cobalt tints, darkest first, with a legend beside it. */
+export function Donut({ slices }: { slices: { label: string; pct: number }[] }) {
+  const R = 88;
+  const r = 62;
+  const total = slices.reduce((a, s) => a + s.pct, 0) || 1;
+  let acc = -Math.PI / 2;
+  const paths = slices.map((s, i) => {
+    const a0 = acc;
+    const a1 = acc + (s.pct / total) * Math.PI * 2;
+    acc = a1;
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const p = (ang: number, rad: number) => `${(88 + Math.cos(ang) * rad).toFixed(2)} ${(88 + Math.sin(ang) * rad).toFixed(2)}`;
+    return (
+      <path
+        key={s.label}
+        d={`M ${p(a0, R)} A ${R} ${R} 0 ${large} 1 ${p(a1, R)} L ${p(a1, r)} A ${r} ${r} 0 ${large} 0 ${p(a0, r)} Z`}
+        fill={DONUT[i % DONUT.length]}
+      />
+    );
+  });
+  return (
+    <div className="donut">
+      <svg viewBox="0 0 176 176" role="img" aria-label={slices.map((s) => `${s.label}: ${Math.round(s.pct)}%`).join(", ")}>
+        {paths}
+      </svg>
+      <div className="legend">
+        {slices.map((s, i) => (
+          <div key={s.label}>
+            <i style={{ background: DONUT[i % DONUT.length] }} />
+            <span>{s.label}</span>
+            <b>{Math.round(s.pct)}%</b>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
