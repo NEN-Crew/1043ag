@@ -121,7 +121,6 @@ export default function CreatorView({ report, variant, windowDays }: Props) {
 
       {view ? (
         <>
-          {view.window.posts > 0 && <Cadence view={view} />}
           <Engagement view={view} />
           <Reach view={view} />
           <Content view={view} />
@@ -326,44 +325,6 @@ function Masthead({
   );
 }
 
-/* ─────────────────────────── cadência ─────────────────────────── */
-
-/**
- * How often the account publishes, first thing on the page: a gap in posting
- * is the most common reason every number below it moves, so it is read before
- * them. Same figures as the Cadência block on the insights screen.
- */
-function Cadence({ view }: { view: PlatformView }) {
-  const c = useMemo(() => cadenceOf(view), [view]);
-  const cells = [
-    { key: "week", label: "posts por semana", value: c.perWeek == null ? dash : formatRate(c.perWeek, 1) },
-    { key: "gap", label: "dias entre posts, mediana", value: c.medianGap == null ? dash : formatRate(c.medianGap, 1) },
-    { key: "max", label: "dias no maior intervalo", value: c.maxGap == null ? dash : String(Math.round(c.maxGap)) },
-    { key: "last", label: "último post", value: c.lastPostAt ? shortDate(c.lastPostAt) : dash },
-  ];
-
-  return (
-    <div style={{ padding: "18px 0 30px" }}>
-      <div style={{ marginBottom: 12 }}>
-        <Eyebrow>Cadência · {view.label} · {rangeLabel(view.window.from, view.window.to)}</Eyebrow>
-      </div>
-      <div className="ruled breakdown-grid" style={{ ["--cols" as any]: cells.length }}>
-        {cells.map((cell) => (
-          <div className="cell" key={cell.key}>
-            <span className="micro">{cell.label}</span>
-            {/* Pinned to the bottom so the numbers line up when a label wraps. */}
-            <span className="cell-count" style={{ marginTop: "auto" }}>{cell.value}</span>
-          </div>
-        ))}
-      </div>
-      <Caption style={{ marginTop: 10 }}>
-        Ritmo de publicação no período. Intervalos longos aparecem como buracos na curva de
-        engajamento e na entrega.
-      </Caption>
-    </div>
-  );
-}
-
 /* ────────────────────── 01 · engajamento ────────────────────── */
 
 function Engagement({ view }: { view: PlatformView }) {
@@ -402,6 +363,8 @@ function Engagement({ view }: { view: PlatformView }) {
             </div>
           )}
         </div>
+
+        {view.window.posts > 0 && <Frequency view={view} />}
       </div>
 
       {view.window.posts > 0 && (
@@ -497,6 +460,38 @@ function Engagement({ view }: { view: PlatformView }) {
         </div>
       )}
     </Section>
+  );
+}
+
+/**
+ * How often the account publishes, as big as the rate beside it: a gap in
+ * posting is the most common reason that rate moves, so the two are read
+ * together. Same figures as the Cadência block on the insights screen.
+ */
+function Frequency({ view }: { view: PlatformView }) {
+  const c = useMemo(() => cadenceOf(view), [view]);
+  const rest = [
+    { key: "gap", label: "dias entre posts, mediana", value: c.medianGap == null ? dash : formatRate(c.medianGap, 1) },
+    { key: "max", label: "dias no maior intervalo", value: c.maxGap == null ? dash : String(Math.round(c.maxGap)) },
+    { key: "last", label: "último post", value: c.lastPostAt ? shortDate(c.lastPostAt) : dash },
+  ];
+
+  return (
+    <div className="hero-col hero-freq">
+      <span className="micro">Frequência</span>
+      <div className="hero-freq-main">
+        <span className="n">{c.perWeek == null ? dash : formatRate(c.perWeek, 1)}</span>
+        <span className="u">posts por semana</span>
+      </div>
+      <div className="hero-freq-rest">
+        {rest.map((r) => (
+          <div key={r.key}>
+            <span className="n">{r.value}</span>
+            <span className="caption">{r.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
