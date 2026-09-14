@@ -4,9 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { CreatorReport } from "@/lib/report";
 import type { Audience, PlatformView, Post } from "@/lib/metrics";
 import { WINDOWS, isPaid } from "@/lib/metrics";
+import { cadenceOf } from "@/lib/insights";
 import {
   dash,
-  formatCadence,
   formatCount,
   formatFreshness,
   formatNumber,
@@ -17,7 +17,6 @@ import { BarRow, Caption, DeltaTag, Eyebrow, Section, Sparkline, Stat, VerdictCh
 import Chart from "./Chart";
 import PeriodChart, { type PeriodMetric } from "./PeriodChart";
 import {
-  Calendar,
   ChevronDown,
   Clock,
   Comment,
@@ -117,12 +116,13 @@ export default function CreatorView({ report, variant, windowDays }: Props) {
 
       {view ? (
         <>
+          {view.window.posts > 0 && <Cadence view={view} />}
           <Engagement view={view} />
           <Reach view={view} />
           <Content view={view} />
           <AudienceDisclosure index={4} audience={report.audience} platform={view.platform} />
           <HistoryDisclosure index={5} view={view} />
-          <ScoreDisclosure index={6} view={view} variant={variant} />
+          <ScoreDisclosure index={6} view={view} />
         </>
       ) : (
         <section className="section first">
@@ -289,13 +289,17 @@ function Masthead({
               <Clock size={13} />
               {refreshing ? "atualizando…" : formatFreshness(view?.updatedAt)}
             </span>
-            {/* The agency's reading of this account. Staff only; the route
-                checks on the server, this is just the door. */}
-            {variant === "agency" && view && (
+            {/* The same insights screen for both readers; each route checks
+                on the server who may open it. */}
+            {view && (
               <a
                 className="btn on-dark"
                 style={{ height: 40 }}
-                href={`/admin/${report.influencer.id}/insights?rede=${view.platform}`}
+                href={
+                  variant === "self"
+                    ? `/me/insights?rede=${view.platform}`
+                    : `/admin/${report.influencer.id}/insights?rede=${view.platform}`
+                }
               >
                 <Insights size={15} />
                 Insights
@@ -313,6 +317,44 @@ function Masthead({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────── cadência ─────────────────────────── */
+
+/**
+ * How often the account publishes, first thing on the page: a gap in posting
+ * is the most common reason every number below it moves, so it is read before
+ * them. Same figures as the Cadência block on the insights screen.
+ */
+function Cadence({ view }: { view: PlatformView }) {
+  const c = useMemo(() => cadenceOf(view), [view]);
+  const cells = [
+    { key: "week", label: "posts por semana", value: c.perWeek == null ? dash : formatRate(c.perWeek, 1) },
+    { key: "gap", label: "dias entre posts, mediana", value: c.medianGap == null ? dash : formatRate(c.medianGap, 1) },
+    { key: "max", label: "dias no maior intervalo", value: c.maxGap == null ? dash : String(Math.round(c.maxGap)) },
+    { key: "last", label: "último post", value: c.lastPostAt ? shortDate(c.lastPostAt) : dash },
+  ];
+
+  return (
+    <div style={{ padding: "18px 0 30px" }}>
+      <div style={{ marginBottom: 12 }}>
+        <Eyebrow>Cadência · {view.label} · {rangeLabel(view.window.from, view.window.to)}</Eyebrow>
+      </div>
+      <div className="ruled breakdown-grid" style={{ ["--cols" as any]: cells.length }}>
+        {cells.map((cell) => (
+          <div className="cell" key={cell.key}>
+            <span className="micro">{cell.label}</span>
+            {/* Pinned to the bottom so the numbers line up when a label wraps. */}
+            <span className="cell-count" style={{ marginTop: "auto" }}>{cell.value}</span>
+          </div>
+        ))}
+      </div>
+      <Caption style={{ marginTop: 10 }}>
+        Ritmo de publicação no período. Intervalos longos aparecem como buracos na curva de
+        engajamento e na entrega.
+      </Caption>
     </div>
   );
 }
@@ -577,19 +619,7 @@ function CollectionNote({ trend, windowDays }: { trend: { at: string }[]; window
 
 function Reach({ view }: { view: PlatformView }) {
   return (
-    <Section
-      index={2}
-      caption="o que o alcance está fazendo"
-      title="alcance & crescimento"
-      headRight={
-        view.postsPerWeek != null ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--ink-400)" }}>
-            <Calendar size={13} />
-            frequência · {formatCadence(view.postsPerWeek)}
-          </span>
-        ) : undefined
-      }
-    >
+    <Section index={2} caption="o que o alcance está fazendo" title="alcance & crescimento">
       <div className="ruled summary-grid">
         {view.summary.map((m) => (
           <div className="summary-cell" key={m.key}>
@@ -933,15 +963,7 @@ function HistoryDisclosure({ index, view }: { index: number; view: PlatformView 
 
 /* ──────────────── 06 · como o score é montado ──────────────── */
 
-function ScoreDisclosure({
-  index,
-  view,
-  variant,
-}: {
-  index: number;
-  view: PlatformView;
-  variant: "self" | "agency";
-}) {
+function ScoreDisclosure({ index, view }: { index: number; view: PlatformView }) {
   return (
     <Disclosure
       index={index}
@@ -970,20 +992,6 @@ function ScoreDisclosure({
           Escala igual em todos os componentes: 50 é o piso do normal, 80 o topo, 100 o dobro do
           topo. Componentes sem dados ficam de fora e os demais são repesados.
         </Caption>
-        {variant === "agency" && view.mediaValue && (
-          <div style={{ borderTop: "1px solid var(--line)", paddingTop: 16 }}>
-            <div className="micro" style={{ marginBottom: 8 }}>Valor de mídia por post</div>
-            <Stat
-              value={`${view.mediaValue.currency}${formatNumber(view.mediaValue.low)} a ${formatNumber(view.mediaValue.high)}`}
-              size={30}
-            />
-            <Caption style={{ marginTop: 8 }}>
-              Views de um post típico a um CPM de {view.mediaValue.currency}
-              {view.mediaValue.cpm[0]} a {view.mediaValue.cpm[1]}. Piso de mídia comprada, não
-              tabela de preços.
-            </Caption>
-          </div>
-        )}
       </div>
     </Disclosure>
   );

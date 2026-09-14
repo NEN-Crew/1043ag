@@ -375,7 +375,7 @@ a.post:hover .post-media { border-color: var(--ink); }
 .rank-row {
   position: relative;
   display: grid;
-  grid-template-columns: 44px minmax(180px, 1.4fr) 132px minmax(150px, 1fr) 96px 92px 34px 22px;
+  grid-template-columns: 44px minmax(160px, 1.4fr) 112px minmax(140px, 1fr) 96px 116px 92px 34px 22px;
   gap: 16px; align-items: center; padding: 16px 14px;
   border-top: 1px solid var(--line);
   transition: background 120ms;
@@ -409,6 +409,7 @@ a.post:hover .post-media { border-color: var(--ink); }
 .rank-er-val { width: 52px; flex: none; text-align: right; }
 .rank-er-val .n { font-family: var(--font-display); font-size: 24px; line-height: 0.9; display: block; }
 .rank-followers { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.rank-value { text-align: right; font-size: 13px; font-weight: 700; white-space: nowrap; }
 
 /* ---- misc ---- */
 .stack > * + * { margin-top: 0; }
@@ -452,6 +453,8 @@ a.post:hover .post-media { border-color: var(--ink); }
   .rank-followers { flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 8px; }
   .rank-row > *:last-child { display: none; }
   .rank-verdict { justify-self: start !important; }
+  .rank-value { text-align: left; }
+  .rank-value.empty { display: none; }
   .rank-insights { justify-self: start; width: auto; padding: 0 12px; gap: 8px; height: 36px; }
   .rank-insights::after { content: "Insights"; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   .only-narrow { display: inline; }
@@ -501,7 +504,7 @@ a.post:hover .post-media { border-color: var(--ink); }
 @media (max-width: 560px) { .window-picker .caption { margin-left: 0; } }
 
 /* ============================================================
-   Insights (agency only). A deliberately plainer register than the
+   Insights (agency and creator). A deliberately plainer register than the
    dashboard: white, five greys, one sans-serif, big numbers, hairlines.
    The mono survives only in the small labels. Nothing carries meaning
    through colour here — the best bar is ink, the rest are grey.

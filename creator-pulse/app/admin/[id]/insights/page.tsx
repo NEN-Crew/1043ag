@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
 /**
  * The agency's reading of one creator: when to publish, which format carries
  * the account, how fast posts close, what the profile reaches between posts.
- * Staff only, checked on the server. Ninety days by default: the cuts here are
+ * Staff only, checked on the server; the creator reads the same screen of
+ * their own account at /me/insights. Ninety days by default: the cuts here are
  * medians per cell, and thirty days rarely gives three posts to a weekday.
  */
 export default async function InsightsPage({
@@ -64,7 +65,7 @@ export default async function InsightsPage({
           Voltar ao perfil
         </Link>
 
-        <InsightsView report={report} view={view} insights={insights} windowDays={windowDays} />
+        <InsightsView report={report} view={view} insights={insights} windowDays={windowDays} variant="agency" />
 
         <div className="footer">
           <span>1043 AG · creator insights</span>

@@ -9,14 +9,17 @@ import { PlatformIcon } from "./Icons";
 
 /**
  * A plainer screen than the dashboard on purpose. White and grey, one
- * typeface, big numbers, hairlines: the agency reads this to decide, not to
- * be impressed, and every block answers one question in its title.
+ * typeface, big numbers, hairlines: it is read to decide, not to be
+ * impressed, and every block answers one question in its title. The agency
+ * and the creator see the same screen; only the links and the wording change.
  */
 type Props = {
   report: CreatorReport;
   view: PlatformView | null;
   insights: Insights | null;
   windowDays: number;
+  /** "self" is the creator reading their own account; "agency" is staff. */
+  variant: "self" | "agency";
 };
 
 const WINDOW_LABELS: Record<number, string> = { 7: "7 dias", 30: "30 dias", 90: "90 dias", 365: "12 meses" };
@@ -28,19 +31,21 @@ const pct = (n: number | null | undefined, d = 1) => (n == null ? "–" : `${for
 const num = (n: number | null | undefined) => (n == null ? "–" : formatNumber(n));
 const signed = (n: number) => (n > 0 ? `+${formatNumber(n)}` : formatNumber(n));
 
-export default function InsightsView({ report, view, insights, windowDays }: Props) {
-  const id = report.influencer.id;
+export default function InsightsView({ report, view, insights, windowDays, variant }: Props) {
+  const base = variant === "self" ? "/me/insights" : `/admin/${report.influencer.id}/insights`;
   const href = (rede: string, janela: number) =>
-    `/admin/${id}/insights?rede=${rede}${janela === 90 ? "" : `&janela=${janela}`}`;
+    `${base}?rede=${rede}${janela === 90 ? "" : `&janela=${janela}`}`;
 
   if (!view || !insights) {
     return (
       <div className="ins">
         <div className="ins-head">
           <div>
-            <div className="ins-kicker">Insights · só agência</div>
+            <div className="ins-kicker">Insights</div>
             <h1 className="ins-title">{report.influencer.name}</h1>
-            <p className="ins-sub">Nenhuma rede conectada. Os insights aparecem quando o creator conectar Instagram ou TikTok.</p>
+            <p className="ins-sub">
+              Nenhuma rede conectada. Os insights aparecem quando {variant === "self" ? "você conectar" : "o creator conectar"} Instagram ou TikTok.
+            </p>
           </div>
         </div>
       </div>
@@ -131,7 +136,7 @@ export default function InsightsView({ report, view, insights, windowDays }: Pro
     <div className="ins">
       <div className="ins-head">
         <div style={{ minWidth: 0 }}>
-          <div className="ins-kicker">Insights · só agência · {WINDOW_LABELS[windowDays] ?? `${windowDays} dias`}</div>
+          <div className="ins-kicker">Insights · {WINDOW_LABELS[windowDays] ?? `${windowDays} dias`}</div>
           <h1 className="ins-title">{view.handle ? `@${view.handle}` : report.influencer.name}</h1>
           <p className="ins-sub">
             {report.influencer.name} · {formatCount(view.followers)} seguidores no {view.label} · {i.posts}{" "}

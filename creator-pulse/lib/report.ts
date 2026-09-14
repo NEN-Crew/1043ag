@@ -43,6 +43,8 @@ export type RosterEntry = {
   growth: number | null;
   growthDelta: Delta | null;
   verdict: Verdict | null;
+  /** Staff only: the agency's price floor for a post on this account. */
+  mediaValue: PlatformView["mediaValue"];
   updatedAt: string | null;
 };
 
@@ -88,6 +90,15 @@ function assemble(
     overall: overallScore(views),
     totalFollowers: followers.length ? followers.reduce((a, b) => a + b, 0) : null,
   };
+}
+
+/**
+ * A report as the creator may see it. The media value is the agency's own
+ * pricing floor, so it stays on the staff side and never reaches the
+ * creator's browser, not even in the page payload.
+ */
+export function forCreator(report: CreatorReport): CreatorReport {
+  return { ...report, platforms: report.platforms.map((p) => ({ ...p, mediaValue: null })) };
 }
 
 export async function getReport(
@@ -211,6 +222,7 @@ export async function getRoster(windowDays: number = DEFAULT_WINDOW): Promise<Ag
         growth,
         growthDelta: delta(growth, "pct"),
         verdict: v.engagement.verdict ?? verdictFor(v.score),
+        mediaValue: v.mediaValue,
         updatedAt: v.updatedAt,
       });
     }

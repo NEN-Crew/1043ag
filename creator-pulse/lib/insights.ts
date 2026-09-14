@@ -1,6 +1,6 @@
 /**
- * The agency-only insights screen: everything the discovery found the
- * database already knows but the dashboard never says. When to publish, which
+ * The insights screen, read by the agency and by the creator: everything the
+ * discovery found the database already knows but the dashboard never says. When to publish, which
  * format carries the account, how fast a post closes, what the profile reaches
  * on days without a post, and which posts brought followers.
  *
@@ -105,6 +105,26 @@ export type Growth = {
   postGains: { post: Post; gain: number }[];
 };
 
+export type Cadence = { perWeek: number | null; medianGap: number | null; maxGap: number | null; lastPostAt: string | null };
+
+/**
+ * Publishing rhythm over the window. Needs only publish dates, so the
+ * dashboard reads it too, without the snapshots the rest of this file wants.
+ */
+export function cadenceOf(view: PlatformView): Cadence {
+  const times = view.content.all
+    .filter((p) => p.postedAt)
+    .map((p) => at(p.postedAt!))
+    .sort((a, b) => a - b);
+  const gaps = times.slice(1).map((t, i) => (t - times[i]) / DAY);
+  return {
+    perWeek: view.postsPerWeek,
+    medianGap: median(gaps),
+    maxGap: gaps.length ? Math.max(...gaps) : null,
+    lastPostAt: view.window.lastPostAt,
+  };
+}
+
 export type Insights = {
   platform: PlatformView["platform"];
   isIg: boolean;
@@ -122,7 +142,7 @@ export type Insights = {
     erWithoutViral: number | null;
     virals: number;
   };
-  cadence: { perWeek: number | null; medianGap: number | null; maxGap: number | null; lastPostAt: string | null };
+  cadence: Cadence;
   velocity: Velocity;
   dailyReach: DailyReach | null;
   growth: Growth;
@@ -300,9 +320,6 @@ export function buildInsights(view: PlatformView, rows: HistoryRow[], windowDays
         return i != null && v ? (i / v) * 100 : null;
       })();
 
-  const times = dated.map((p) => at(p.postedAt!)).sort((a, b) => a - b);
-  const gaps = times.slice(1).map((t, i) => (t - times[i]) / DAY);
-
   return {
     platform: view.platform,
     isIg,
@@ -320,12 +337,7 @@ export function buildInsights(view: PlatformView, rows: HistoryRow[], windowDays
       erWithoutViral: posts.some((p) => p.standout === "viral") ? erWithoutViral : null,
       virals: posts.filter((p) => p.standout === "viral").length,
     },
-    cadence: {
-      perWeek: view.postsPerWeek,
-      medianGap: median(gaps),
-      maxGap: gaps.length ? Math.max(...gaps) : null,
-      lastPostAt: view.window.lastPostAt,
-    },
+    cadence: cadenceOf(view),
     velocity: velocity(rows, posts, isIg),
     dailyReach: isIg ? dailyReach(rows, from) : null,
     growth: growth(rows, posts, from),

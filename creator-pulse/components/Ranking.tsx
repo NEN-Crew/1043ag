@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { AgencyRoster, RosterEntry } from "@/lib/report";
-import { formatCount, formatFreshness, formatRate } from "@/lib/format";
+import { formatCount, formatFreshness, formatNumber, formatRate } from "@/lib/format";
 import { Caption, DeltaTag, Eyebrow, VerdictChip } from "./ui";
 import { AlertTriangle, ChevronRight, Clock, Grid, Info, Insights, PlatformIcon } from "./Icons";
 
@@ -58,6 +58,7 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
   }, [roster.creators, network, sort]);
 
   const sortLabel = SORTS.find((s) => s.key === sort)!.label.toLowerCase();
+  const cpm = roster.creators.find((c) => c.mediaValue)?.mediaValue ?? null;
   const netLabel = NETWORKS.find((n) => n.key === network)!.label;
 
   return (
@@ -113,6 +114,7 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
           <span className="colhead">Rede</span>
           <span className="colhead">Engajamento</span>
           <span className="colhead" style={{ textAlign: "right" }}>Seguidores</span>
+          <span className="colhead" style={{ textAlign: "right" }}>Valor / post</span>
           <span className="colhead" style={{ textAlign: "right" }}>Veredito</span>
           <span />
           <span />
@@ -179,6 +181,13 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
                 <DeltaTag delta={c.growthDelta} />
               </span>
 
+              <span className={`rank-value${c.mediaValue ? "" : " empty"}`}>
+                {c.mediaValue
+                  ? `${c.mediaValue.currency} ${formatNumber(c.mediaValue.low)} a ${formatNumber(c.mediaValue.high)}`
+                  : "–"}
+                <span className="only-narrow colhead" style={{ marginLeft: 6 }}>por post</span>
+              </span>
+
               <span className="rank-verdict" style={{ justifySelf: "end" }}>
                 <VerdictChip verdict={c.verdict} />
               </span>
@@ -186,7 +195,7 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
               <Link
                 href={`/admin/${c.creatorId}/insights?rede=${c.platform}`}
                 className="rank-insights"
-                title="Insights · só agência"
+                title="Insights"
                 aria-label={`Insights de ${c.handle ? `@${c.handle}` : c.name} no ${c.platformLabel}`}
               >
                 <Insights size={15} />
@@ -209,6 +218,17 @@ export default function Ranking({ roster }: { roster: AgencyRoster }) {
               : `${netLabel}. Ranqueado por ${sortLabel}. Clique numa linha para abrir o perfil.`}
           </Caption>
         </div>
+
+        {cpm && (
+          <div style={{ display: "flex", gap: 8, paddingTop: 8, alignItems: "flex-start" }}>
+            <Info size={13} />
+            <Caption>
+              Valor / post: views de um post típico a um CPM de {cpm.currency}{" "}
+              {cpm.cpm[0]} a {cpm.cpm[1]}. Piso de mídia comprada, não tabela de preços. Só a
+              agência vê esse número.
+            </Caption>
+          </div>
+        )}
 
         {roster.pending.length > 0 && (
           <div style={{ marginTop: 34, borderTop: "1px solid var(--line)", paddingTop: 20 }}>
