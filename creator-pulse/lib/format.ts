@@ -96,3 +96,18 @@ export function formatMonth(iso: string): string {
 }
 
 export const dash = DASH;
+
+/** "R$ 12.500", with cents only when there are any: "R$ 12.500,50". */
+export function formatMoney(n: number | null | undefined): string {
+  const v = num(n);
+  if (v == null) return DASH;
+  const cents = Math.round(v * 100) % 100 !== 0;
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: cents ? 2 : 0,
+    maximumFractionDigits: 2,
+  })
+    .format(v)
+    .replace(/ /g, " ");
+}

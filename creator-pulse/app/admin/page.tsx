@@ -7,6 +7,7 @@ import CreateInfluencer from "@/components/CreateInfluencer";
 import Ranking from "@/components/Ranking";
 import TopBar from "@/components/TopBar";
 import ExportButtons from "@/components/ExportButtons";
+import AreaNav from "@/components/AreaNav";
 import { Caption, Spinner } from "@/components/ui";
 import { DEFAULT_WINDOW } from "@/lib/metrics";
 
@@ -36,9 +37,12 @@ export default async function AdminPage() {
       />
       <main className="shell">
         <div className="controls">
-          <Caption>Todos os creators da 1043, ranqueados por engajamento nos últimos {DEFAULT_WINDOW} dias.</Caption>
+          <AreaNav base="/admin" current="performance" />
           {meta.connectedCount > 0 && <ExportButtons windowDays={DEFAULT_WINDOW} />}
         </div>
+        <Caption style={{ margin: "-14px 0 26px", paddingLeft: 10 }}>
+          Todos os creators da 1043, ranqueados por engajamento nos últimos {DEFAULT_WINDOW} dias.
+        </Caption>
 
         {meta.creatorCount === 0 ? (
           <div className="notice">Nenhum creator ainda. Adicione o primeiro abaixo.</div>

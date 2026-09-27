@@ -181,6 +181,11 @@ export const Printer = (p: Props) => (
   <Stroke {...p}><path d="M6 9V3h12v6" /><rect x="3" y="9" width="18" height="9" rx="2" /><path d="M6 14h12v7H6z" /></Stroke>
 );
 
+/** The commercial area: a coin, drawn as a ring with a vertical bar. */
+export const Coin = (p: Props) => (
+  <Stroke {...p}><circle cx="12" cy="12" r="9" /><path d="M15 9.2c-.6-.9-1.7-1.4-3-1.4-1.8 0-3 .9-3 2.1 0 2.9 6 1.4 6 4.3 0 1.2-1.2 2.1-3 2.1-1.4 0-2.5-.6-3.1-1.5" /><path d="M12 6v1.8M12 16.3V18" /></Stroke>
+);
+
 export const Check = (p: Props) => (
   <Stroke {...p}><path d="m5 12 5 5L20 7" /></Stroke>
 );

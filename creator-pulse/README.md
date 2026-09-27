@@ -249,6 +249,16 @@ It prints the password once. Run it again with the same e-mail to issue a new
 password. Staff log in at `/login` and land on `/admin`. The shared
 `ADMIN_PASSWORD` keeps working as a fallback.
 
+### Área comercial
+
+Every publi from quote to payment, as a board: `/admin/comercial` (the agency, every creator), `/admin/[id]/comercial` (one creator, as the agency sees it) and `/me/comercial` (the creator, read-only, their own deals only, no internal notes).
+
+Staff register an orçamento (creator, agência, marca, data, campanha, escopo, tipo de entrega, valor, prazo em dias após a nf) and move it through orçamento, contrato, nf and pagamento, by dragging the card or clicking a status in the drawer. Contrato, nf and pagamento only open once the quote is approved. Each job has two invoices, the creator's (80%) and the agency's (20%), tracked separately.
+
+Nothing about timing is stored: the due date is the first invoice's issue date plus the client's terms, and a payment past that date without "recebido" shows as late on its own. All of it lives in `lib/commercial.ts` (pure) and `lib/deals.ts` (the `deals` table).
+
+Aifred reads the whole base at `GET /api/comercial` with `Authorization: Bearer $AIFRED_TOKEN` (set `AIFRED_TOKEN` in Vercel, `openssl rand -hex 32`). Optional filters: `creator` (id or part of the name), `marca`, `etapa`, `periodo` (mes, 30, 90, ano, tudo). The response has the totals (a receber, atrasado, vence em 5 dias, recebido), `alertas` with a ready-to-say `mensagem` per job, the receivables by due date, the price base per creator (average closed, last 5, range by deliverable, approval rate) and approval by brand.
+
 ## What's inside
 
 ```

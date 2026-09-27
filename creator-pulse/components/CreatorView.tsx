@@ -16,6 +16,7 @@ import {
   Bookmark,
   ChevronDown,
   Clock,
+  Coin,
   Comment,
   Eye,
   File,
@@ -173,6 +174,10 @@ export default function CreatorView({ report, variant, windowDays, notices, afte
                 insights
               </a>
             )}
+            <a className="btn sm" href={`${base}/comercial`}>
+              <Coin size={14} />
+              comercial
+            </a>
             {report.platforms.length > 0 && (
               <Seg
                 label="Rede"
