@@ -25,18 +25,9 @@ export const COOLDOWN_MS = 12 * 60 * 60 * 1000;
 /** A fetch that has held the lock this long is presumed dead and may be retaken. */
 const LOCK_MS = 2 * 60 * 1000;
 
-export const HUNT_STATUSES = ["encontrado", "contatado", "em_conversa", "fechado", "descartado"] as const;
-export type HuntStatus = (typeof HUNT_STATUSES)[number];
-export const STATUS_LABEL: Record<HuntStatus, string> = {
-  encontrado: "encontrado",
-  contatado: "contatado",
-  em_conversa: "em conversa",
-  fechado: "fechado",
-  descartado: "descartado",
-};
-
-export const DELETE_REASONS = ["pedido_do_perfil", "menor_de_idade", "sem_interesse"] as const;
-export type DeleteReason = (typeof DELETE_REASONS)[number];
+export { HUNT_STATUSES, STATUS_LABEL, DELETE_REASONS } from "./hunt-status";
+export type { HuntStatus, DeleteReason } from "./hunt-status";
+import type { HuntStatus, DeleteReason } from "./hunt-status";
 
 export type HuntProfile = {
   id: string;

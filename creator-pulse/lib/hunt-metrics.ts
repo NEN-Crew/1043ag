@@ -22,8 +22,8 @@ import { BetsHit, scanBets } from "./hunt-flags";
 import { HuntProfile, HuntSnapshot, cooldownLeft, isStale } from "./hunt";
 import { profileUrl } from "./hunt-handle";
 
-/** Prospects post less regularly than the roster; 90 days gives steadier medians. */
-export const HUNT_DEFAULT_WINDOW = 90;
+import { HUNT_DEFAULT_WINDOW } from "./hunt-status";
+export { HUNT_DEFAULT_WINDOW };
 
 export type ProspectPost = Post & {
   /** `isPaid()` on the caption, or the platform's own paid flag (TikTok). */
