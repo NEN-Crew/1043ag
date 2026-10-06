@@ -2,8 +2,10 @@
 
 A tiny tool for a small agency to track its creators' **Instagram** and
 **TikTok** numbers in one place. Creators connect their own accounts; the
-agency sees everyone. No scraping — every number comes from the official APIs
-with the creator's consent.
+agency sees everyone. Roster numbers come from the official APIs with the
+creator's consent. The agency-only **hunt** area reads public data of creators
+outside the roster: Meta's official Business Discovery API for Instagram,
+ScrapeCreators for TikTok (see "Hunt" below).
 
 Built to be simple: one Next.js app, one Postgres database, deploys to Vercel.
 
@@ -259,6 +261,25 @@ Nothing about timing is stored: the due date is the first invoice's issue date p
 
 Aifred reads the whole base at `GET /api/comercial` with `Authorization: Bearer $AIFRED_TOKEN` (set `AIFRED_TOKEN` in Vercel, `openssl rand -hex 32`). Optional filters: `creator` (id or part of the name), `marca`, `etapa`, `periodo` (mes, 30, 90, ano, tudo). The response has the totals (a receber, atrasado, vence em 5 dias, recebido), `alertas` with a ready-to-say `mensagem` per job, the receivables by due date, the price base per creator (average closed, last 5, range by deliverable, approval rate) and approval by brand.
 
+### Hunt
+
+The agency's lookup of creators **outside** the roster, at `/admin/hunt`. Staff type an @ or paste a profile link, Pulse fetches the account's public data, saves it with a timestamp and shows a prospect page built to close a deal: engagement, delivery, rhythm, publis, a dated betting-ad check, the latest posts, growth across lookups, price references and a negotiation panel (status, contact, notes, "criar acesso de creator", "excluir dados").
+
+**Sources.** Instagram comes from Meta's official **Business Discovery API**, queried with 1043's own professional account (Graph API, Facebook Login flavour, a separate token from the one creators connect with). It only returns professional accounts, and never reach, saves, shares or audience, so the Instagram rate is labelled **"er público"** (likes + comments ÷ followers) and compared against the roster's numbers computed the same way. TikTok comes from **ScrapeCreators**, a paid third-party public-data API (one lookup is 2–5 credits), because TikTok has no official way to look up a creator who hasn't authorised an app. Pulse's own TikTok app and creator tokens are never used for hunt.
+
+**Caching.** A profile is fetched once and reused for 7 days. Opening a stale copy refreshes it in the background; staff can force an update once it is 12 h old. Every successful fetch appends a snapshot (`hunt_snapshots`), so growth shows up across lookups. A failed fetch keeps the last good copy and records the error. Hunt profiles never join the daily cron; the cron only deletes prospects that didn't close and had no fetch or edit for 12 months.
+
+**Access.** Every page under `app/admin/hunt` and every route under `app/api/hunt` requires a staff session. Hunt data never reaches the roster, the ranking, the CSV exports, `/api/comercial` or any creator page. Verified numbers (reach, saves, audience) only come when the prospect connects their own account through the normal "add creator" flow.
+
+**Setup.** Both networks are optional and show as "não configurada" until their variables exist.
+
+1. **ScrapeCreators (TikTok).** Create an account at scrapecreators.com (100 free credits), copy the API key and set `SCRAPECREATORS_API_KEY` in Vercel (Production and Preview) and in the local `.env`.
+2. **Instagram Business Discovery.** 1043's Instagram must be a professional account linked to a Facebook Page the agency manages. In developers.facebook.com, add the "Instagram API with Facebook Login" use case (Facebook Login for Business) to the Pulse app, or create a separate Business app if that isn't possible. Standard Access is enough (only people with a role on the app use it, so there is no App Review). Create a token with `instagram_basic`, `instagram_manage_insights`, `pages_show_list` and `pages_read_engagement`, plus `business_management` and `ads_read` if the Page is managed through a business portfolio. Preferred: a System User token from Business Settings, which doesn't expire. Fallback: a Graph API Explorer token extended to about 60 days in the Access Token Debugger (it has to be renewed; the UI says so when it expires). Get the account id with `GET /me/accounts?fields=instagram_business_account{id,username}` and set `IG_DISCOVERY_TOKEN` and `IG_DISCOVERY_ACCOUNT_ID`.
+
+**Limits.** Instagram: professional accounts only; hidden likes mean no ER; Reels views include paid views; captions arrive without the "@". TikTok: the vendor's `region` parameter can return an empty list, so the fetch tries BR, then US, then GB. Both: at most 60 posts, 400 days, 4 pages, the same caps as the roster.
+
+**Legal.** The privacy policy (`/privacy`, section 9, with a pt-BR copy) describes the processing. `docs/hunt-lgpd.md` is the legitimate-interest draft for a lawyer. People who ask not to be analysed are deleted and suppressed (a hash of the handle), and can never be fetched again.
+
 ## What's inside
 
 ```
@@ -267,16 +288,22 @@ app/
   login/            creator + staff login
   me/               creator's own numbers + connect buttons (+ info, insights)
   admin/            agency view — roster, create, refresh, export (+ [id]/info, [id]/insights)
+  admin/hunt/       prospects outside the roster (agency only): search, list, [rede]/[handle]
   api/
     auth/           login / logout / shared admin password
     admin/          create creator, export CSV
     report/[id]     GET a creator's numbers (IG + TikTok, separated)
     refresh/[id]    POST pull fresh numbers (admin only)
     connect/        OAuth start + callback for each platform
+    hunt/           lookup, [id] (PATCH, DELETE), [id]/refresh — staff only
 lib/
   db.ts             Postgres (Neon) connection
   instagram.ts      Instagram OAuth + stats
   tiktok.ts         TikTok OAuth + stats
+  hunt.ts           prospects: tables, freshness, lock, lookup/refresh, suppression
+  hunt-instagram.ts Business Discovery fetcher · hunt-tiktok.ts ScrapeCreators fetcher
+  hunt-metrics.ts   prospect view model over analyze(); roster "público" comparison
+  hunt-flags.ts     the betting-ad scan (terms + the MP 1.394 date)
   benchmarks.ts     every published benchmark, in one place
   metrics.ts        raw stats -> the view model the screens consume
   history.ts        follower + engagement trends from the snapshot tables
@@ -294,7 +321,7 @@ components/
   InsightsView.tsx  the insights screen
   Ranking.tsx       the agency roster, filtered and sorted
   TopBar.tsx        the dark header (logo, identity, figures, photo, sair)
-schema.sql          the seven tables
+schema.sql          the tables (roster, snapshots, admins, deals, hunt)
 scripts/setup-db.ts npm run db:setup
 scripts/create-admin.ts npm run admin:create
 ```

@@ -133,3 +133,61 @@ create table if not exists deals (
   updated_at          timestamptz not null default now()
 );
 create index if not exists deals_influencer_idx on deals (influencer_id, received_at);
+
+-- hunt: external creators the agency looked up. One row = one account on one
+-- network (never mixed), so the Instagram/TikTok split stays explicit in one table.
+create table if not exists hunt_profiles (
+  id               text primary key,            -- 'hunt-' + 10 hex
+  platform         text not null check (platform in ('instagram','tiktok')),
+  handle           text not null,               -- lowercase, no @
+  platform_user_id text,
+  display_name     text,
+  bio              text,
+  link             text,                        -- website / bio link
+  avatar_url       text,                        -- CDN link that expires. Images are never downloaded
+  verified         boolean,
+  likes_hidden     boolean not null default false,
+  followers        bigint,
+  following        bigint,
+  media_count      bigint,
+  likes_total      bigint,                      -- TikTok heart count
+  posts            jsonb not null default '[]', -- same item shape as instagram_stats.posts / tiktok_stats.videos
+  source           text,                        -- 'meta_business_discovery' | 'scrapecreators'
+  fetched_at       timestamptz,
+  fetched_by       text,                        -- getAdminId(), or 'shared' for the shared password
+  fetching_since   timestamptz,                 -- lock: two staff never pay for the same fetch
+  last_error       text,
+  last_error_at    timestamptz,
+  status           text not null default 'encontrado'
+                   check (status in ('encontrado','contatado','em_conversa','fechado','descartado')),
+  notes            text,
+  contact          text,                        -- typed by staff, never scraped
+  influencer_id    text references influencers(id) on delete set null,
+  created_by       text,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  unique (platform, handle)
+);
+
+create table if not exists hunt_snapshots (
+  id           bigint generated always as identity primary key,
+  profile_id   text not null references hunt_profiles(id) on delete cascade,
+  captured_at  timestamptz not null default now(),
+  source       text,
+  fetched_by   text,
+  followers    bigint,
+  following    bigint,
+  media_count  bigint,
+  likes_total  bigint,
+  post_metrics jsonb not null default '[]'      -- slim: id, date, likes, comments, views, shares. No captions or URLs
+);
+create index if not exists hunt_snapshots_profile_idx on hunt_snapshots (profile_id, captured_at);
+
+-- People who asked not to be analysed, and minors: never fetched again.
+create table if not exists hunt_suppressed (
+  platform    text not null,
+  handle_hash text not null,                    -- sha256 of 'platform:handle'
+  reason      text not null,
+  created_at  timestamptz not null default now(),
+  primary key (platform, handle_hash)
+);

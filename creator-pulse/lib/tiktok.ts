@@ -96,8 +96,11 @@ export async function fetchStats(accessToken: string) {
   const userRes = await fetch(
     `${API}/v2/user/info/?` +
       new URLSearchParams({
+        // `username` is the real @handle (scope user.info.profile). display_name
+        // is what the person typed as their name, and it used to be stored as the
+        // handle: "caio patez ⭑" can't match a URL or a hunt lookup, "caiopatez" can.
         fields:
-          "open_id,display_name,avatar_url_100,follower_count,following_count,likes_count,video_count",
+          "open_id,username,display_name,avatar_url_100,follower_count,following_count,likes_count,video_count",
       }),
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
@@ -117,7 +120,7 @@ export async function fetchStats(accessToken: string) {
   }));
 
   return {
-    username: user.display_name ?? null,
+    username: user.username || user.display_name || null,
     avatarUrl: user.avatar_url_100 ?? null,
     followers: user.follower_count ?? null,
     following: user.following_count ?? null,

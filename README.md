@@ -2,8 +2,10 @@
 
 A tiny tool for a small agency to track its creators' **Instagram** and
 **TikTok** numbers in one place. Creators connect their own accounts; the
-agency sees everyone. No scraping — every number comes from the official APIs
-with the creator's consent.
+agency sees everyone. Roster numbers come from the official APIs with the
+creator's consent. The agency-only **hunt** area reads public data of creators
+outside the roster: Meta's official Business Discovery API for Instagram,
+ScrapeCreators for TikTok (see "Hunt" below).
 
 Built to be simple: one Next.js app, one Postgres database, deploys to Vercel.
 
@@ -84,6 +86,16 @@ aren't shown for TikTok — that's expected, not a bug.
 2. The creator logs in at `/login`, connects their Instagram and/or TikTok.
 3. Back in `/admin`, click **Refresh** on that creator to pull fresh numbers
    anytime you need them.
+
+## Hunt
+
+The agency's lookup of creators outside the roster, at `/admin/hunt`, staff
+only. Instagram data comes from Meta's official Business Discovery API using
+1043's own professional account; TikTok data from ScrapeCreators, a paid
+public-data API. Profiles are fetched on demand, reused for 7 days, refreshed
+on request after 12 h, and deleted after 12 months without activity. Env vars:
+`SCRAPECREATORS_API_KEY`, `IG_DISCOVERY_TOKEN`, `IG_DISCOVERY_ACCOUNT_ID`. Setup
+steps, limits and the legal notes are in `creator-pulse/README.md` › Hunt.
 
 ## What's inside
 

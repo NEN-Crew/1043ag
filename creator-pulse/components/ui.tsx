@@ -79,6 +79,7 @@ export function Seg({
       {items.map((it) => (
         <button
           key={it.key}
+          type="button"
           role="tab"
           aria-selected={value === it.key}
           disabled={it.disabled}
