@@ -179,7 +179,7 @@ create table if not exists hunt_snapshots (
   following    bigint,
   media_count  bigint,
   likes_total  bigint,
-  post_metrics jsonb not null default '[]'      -- slim: id, date, likes, comments, views, shares; no captions or URLs
+  post_metrics jsonb not null default '[]'      -- slim: id, date, likes, comments, views, shares. No captions or URLs
 );
 create index if not exists hunt_snapshots_profile_idx on hunt_snapshots (profile_id, captured_at);
 
