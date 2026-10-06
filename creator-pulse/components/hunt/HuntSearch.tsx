@@ -40,10 +40,6 @@ export default function HuntSearch({ available }: { available: Record<Net, boole
       ref.current?.focus();
       return;
     }
-    if (!available[parsed.platform]) {
-      setMsg(errorCopy("config_missing", { platform: parsed.platform }));
-      return;
-    }
     setBusy(true);
     try {
       const res = await fetch("/api/hunt/lookup", {
