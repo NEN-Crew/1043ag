@@ -144,7 +144,7 @@ create table if not exists hunt_profiles (
   display_name     text,
   bio              text,
   link             text,                        -- website / bio link
-  avatar_url       text,                        -- CDN link, expires; images are never downloaded
+  avatar_url       text,                        -- CDN link that expires. Images are never downloaded
   verified         boolean,
   likes_hidden     boolean not null default false,
   followers        bigint,
@@ -154,7 +154,7 @@ create table if not exists hunt_profiles (
   posts            jsonb not null default '[]', -- same item shape as instagram_stats.posts / tiktok_stats.videos
   source           text,                        -- 'meta_business_discovery' | 'scrapecreators'
   fetched_at       timestamptz,
-  fetched_by       text,                        -- getAdminId(); 'shared' for the shared password
+  fetched_by       text,                        -- getAdminId(), or 'shared' for the shared password
   fetching_since   timestamptz,                 -- lock: two staff never pay for the same fetch
   last_error       text,
   last_error_at    timestamptz,
