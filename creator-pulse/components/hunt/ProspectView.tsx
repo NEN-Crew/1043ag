@@ -212,9 +212,11 @@ function Hero({ p }: { p: Prospect }) {
             : p.window.posts === 0
             ? `Nenhum post nos últimos ${p.window.days} dias.`
             : c
-            ? `Creators da 1043 na faixa ${c.tier}: ${formatRate(c.median)}% · ${c.count} ${c.count === 1 ? "perfil" : "perfis"}${
-                c.allTiers ? " · todas as faixas, poucos na mesma" : ""
-              }`
+            ? c.allTiers
+              ? `Creators da 1043 no ${p.platformLabel}, todas as faixas: ${formatRate(c.median)}% · ${c.count} ${
+                  c.count === 1 ? "perfil" : "perfis"
+                } (menos de 3 na faixa ${c.tier})`
+              : `Creators da 1043 na faixa ${c.tier}: ${formatRate(c.median)}% · ${c.count} ${c.count === 1 ? "perfil" : "perfis"}`
             : "Sem creators conectados nessa rede para comparar."}
         </span>
       </div>

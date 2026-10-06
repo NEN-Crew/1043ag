@@ -96,7 +96,7 @@ export default function HuntList({ rows }: { rows: ProspectRow[] }) {
                   <Link href={r.href} className="rank-handle rank-link" title={`Abrir @${r.handle}`}>
                     {r.name}
                   </Link>
-                  <span className="rank-sub">
+                  <span className="rank-sub" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                     @{r.handle} · <PlatformIcon platform={r.platform} size={11} /> {r.platform}
                   </span>
                 </span>
@@ -111,10 +111,12 @@ export default function HuntList({ rows }: { rows: ProspectRow[] }) {
                 ) : (
                   <>
                     <b>{formatRate(r.er)}%</b>
-                    {r.platform === "instagram" && <span className="caption"> público</span>}
+                    <span className="caption">
+                      <span className="only-narrow"> er</span>
+                      {r.platform === "instagram" && " público"}
+                    </span>
                   </>
                 )}
-                <span className="only-narrow caption"> er</span>
               </span>
               <span className="hunt-num">
                 {formatCount(r.views)}
