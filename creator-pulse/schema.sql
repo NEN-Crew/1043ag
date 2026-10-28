@@ -133,3 +133,16 @@ create table if not exists deals (
   updated_at          timestamptz not null default now()
 );
 create index if not exists deals_influencer_idx on deals (influencer_id, received_at);
+
+-- Meta data-deletion requests. Meta POSTs a signed_request to
+-- /api/data-deletion when a creator removes Pulse from their Instagram
+-- account. We delete their Instagram data and hand back a confirmation code
+-- they can check at /data-deletion?code=... (Meta requires a status URL).
+create table if not exists data_deletion_requests (
+  confirmation_code text primary key,
+  platform          text not null check (platform in ('instagram','tiktok')),
+  platform_user_id  text not null,
+  influencer_id     text,
+  status            text not null check (status in ('completed','no_data')),
+  requested_at      timestamptz not null default now()
+);

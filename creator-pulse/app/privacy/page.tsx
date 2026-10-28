@@ -57,9 +57,11 @@ export default function PrivacyPage() {
           Statistics are retained for as long as you collaborate with the Agency, to
           allow historical reporting. You may disconnect a platform at any time by
           revoking the app&apos;s access in Instagram/TikTok settings. This invalidates
-          the stored token. To have your account and stored data deleted, contact{" "}
-          <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and we will remove them within 30
-          days.
+          the stored token; for Instagram, Meta also notifies us and we delete the
+          stored data from that account automatically. To have your account and
+          stored data deleted, contact <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and
+          we will remove them within 30 days. Step-by-step instructions:{" "}
+          <a href="/data-deletion">pulse data deletion page</a>.
         </p>
 
         <h2>7. Your rights</h2>

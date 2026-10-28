@@ -453,6 +453,9 @@ a.post:hover .post-media { outline: 1.5px solid var(--ink); outline-offset: 0; }
 .legal .wordmark { font-family: var(--font-mono); font-weight: 700; font-size: 14px; color: var(--ink); }
 .legal .dot { color: var(--cobalt); }
 .legal a { color: var(--cobalt); text-decoration: underline; }
+.legal .deletion-check { display: flex; gap: 8px; margin: 4px 0 8px; }
+.legal .deletion-check input { flex: 1; max-width: 260px; font-family: var(--font-mono); font-size: 14px; padding: 10px 12px; border: 1px solid var(--ink-300); border-radius: 10px; }
+.legal .deletion-check button { font-family: var(--font-mono); font-size: 13px; font-weight: 700; padding: 10px 16px; border: 0; border-radius: 10px; background: var(--ink); color: #fff; cursor: pointer; }
 
 /* ============================================================
    Insights. Same system, plainer register: the blocks are cards, the
