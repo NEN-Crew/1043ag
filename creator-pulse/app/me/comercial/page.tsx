@@ -4,7 +4,7 @@ import { forCreator, getReport } from "@/lib/report";
 import { listDeals } from "@/lib/deals";
 import { forCreatorDeals, summarize, todayBR } from "@/lib/commercial";
 import { formatMoney } from "@/lib/format";
-import AreaNav from "@/components/AreaNav";
+import AreaNav, { CREATOR_COMERCIAL_HIDDEN } from "@/components/AreaNav";
 import Commercial from "@/components/Commercial";
 import TopBar from "@/components/TopBar";
 import { Caption } from "@/components/ui";
@@ -19,6 +19,9 @@ export const dynamic = "force-dynamic";
 export default async function MyCommercialPage() {
   const id = getInfluencerId();
   if (!id) redirect(isAdmin() ? "/admin/comercial" : "/login");
+  // Hidden from creators for now: no link in the nav, and the direct URL
+  // goes back to their performance page. Flip the flag in AreaNav to restore.
+  if (CREATOR_COMERCIAL_HIDDEN) redirect("/me");
 
   const today = todayBR();
   const [found, raw] = await Promise.all([getReport(id), listDeals(id)]);
