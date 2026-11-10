@@ -8,6 +8,7 @@ import { cadenceOf } from "@/lib/insights";
 import { dash, formatCount, formatFreshness, formatNumber, formatRate } from "@/lib/format";
 import { Bar, Caption, Chip, DeltaTag, Donut, SectionHead, Seg, Sparkline, VerdictChip } from "./ui";
 import TopBar, { creatorStats } from "./TopBar";
+import { CREATOR_COMERCIAL_HIDDEN } from "./AreaNav";
 import Chart from "./Chart";
 import PeriodChart, { type PeriodMetric } from "./PeriodChart";
 import {
@@ -174,10 +175,12 @@ export default function CreatorView({ report, variant, windowDays, notices, afte
                 insights
               </a>
             )}
-            <a className="btn sm" href={`${base}/comercial`}>
-              <Coin size={14} />
-              comercial
-            </a>
+            {(staff || !CREATOR_COMERCIAL_HIDDEN) && (
+              <a className="btn sm" href={`${base}/comercial`}>
+                <Coin size={14} />
+                comercial
+              </a>
+            )}
             {report.platforms.length > 0 && (
               <Seg
                 label="Rede"
